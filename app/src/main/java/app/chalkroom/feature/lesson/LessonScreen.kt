@@ -288,14 +288,14 @@ private fun Stage(state: UiState, lesson: Lesson, profile: StudentProfile) {
     Box(
         Modifier
             .fillMaxWidth()
-            .height(232.dp)
+            .height(272.dp)
             .background(profile.color.copy(alpha = 0.18f).compositeOver(colors.page)),
         contentAlignment = Alignment.BottomCenter,
     ) {
         StudentFigure(
             studentId = lesson.studentId,
             expression = state.expression,
-            modifier = Modifier.width(180.dp),
+            modifier = Modifier.width(225.dp),
             motes = lesson.queue.map { Mote(it.id, if (it.id == state.clearingMoteId) clearProgress else 0f) },
             activeMoteId = state.clearingMoteId ?: lesson.current?.id,
             motesStill = state.clearingStep != null,

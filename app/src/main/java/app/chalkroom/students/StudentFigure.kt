@@ -23,10 +23,12 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -126,6 +128,7 @@ fun StudentFigure(
     val lid by tweenFace(t.lid, "lid")
     val tilt by tweenFace(t.tilt, "tilt")
     val stretch by tweenFace(t.stretch, "stretch")
+    val soft by tweenFace(t.soft, "soft")
     val scanWeight by tweenFace(if (look == Look.READING && !reduced) 1f else 0f, "scanWeight")
 
     // Each mote condenses in when it first appears, and slides along the arc when another leaves.
@@ -194,30 +197,45 @@ fun StudentFigure(
             val eh = face.eyeH * w * eyeScale
             val open = 1f - blink * 0.9f
             listOf(-1, 1).forEach { side ->
-                val shrink = if (side == 1) 1f - asym else 1f
+                // A miss evens the eyes out: doubt, not a squint.
+                val shrink = if (side == 1) 1f - asym * (1f - r) else 1f
                 val center = Offset(
                     (face.center.x + side * face.eyeGap / 2) * w + dx,
                     (face.center.y + side * face.eyeSlope / 2) * w + dy,
                 )
-                rotate(-side * face.eyeTilt, center) {
-                    val eyeH = (eh * shrink * open).coerceAtLeast(ew * 0.25f)
-                    val top = center.y - eyeH / 2
-                    // A hint of lid would only flatten the eye's top, so lids start showing past 0.06.
-                    val lids = ((lid + re.lid - 0.06f) / 0.94f).coerceIn(0f, 0.85f)
-                    val lidY = top + eyeH * lids
-                    clipRect(top = lidY) {
+                val eyeH = (eh * shrink * open).coerceAtLeast(ew * 0.25f)
+                val top = center.y - eyeH / 2
+                // A hint of lid would only flatten the eye's top, so lids start showing past 0.06.
+                val lids = ((lid + re.lid - 0.06f) / 0.94f).coerceIn(0f, 0.85f)
+                val lidY = top + eyeH * lids
+                // Lids stay level even on slanted eyes (a slanted lid reads as a frown). A soft lid
+                // dips in the middle.
+                val dip = soft * eyeH * 0.16f
+                val half = ew * 0.8f
+                val lidEdge = Path().apply {
+                    moveTo(center.x - half, lidY - dip)
+                    quadraticTo(center.x, lidY + dip, center.x + half, lidY - dip)
+                }
+                val below = Path().apply {
+                    addPath(lidEdge)
+                    lineTo(center.x + half, top + eyeH * 2)
+                    lineTo(center.x - half, top + eyeH * 2)
+                    close()
+                }
+                clipPath(below) {
+                    rotate(-side * face.eyeTilt, center) {
                         if (face.oval) {
                             drawOval(colors.ink, Offset(center.x - ew / 2, top), Size(ew, eyeH))
                         } else {
                             drawRoundRect(colors.ink, Offset(center.x - ew / 2, top), Size(ew, eyeH), CornerRadius(ew / 2, ew / 2))
                         }
                     }
-                    if (lids > 0.22f && blink < 0.5f) {
-                        drawLine(colors.ink, Offset(center.x - ew * 0.75f, lidY), Offset(center.x + ew * 0.75f, lidY), 0.018f * w, StrokeCap.Round)
-                    }
-                    if (eyeScale > 1.1f && blink < 0.5f) {
-                        drawCircle(colors.page, ew * 0.18f * (eyeScale - 1f) * 3f, Offset(center.x - ew * 0.12f, center.y - eyeH * 0.22f))
-                    }
+                }
+                if (lids > 0.22f && blink < 0.5f) {
+                    drawPath(lidEdge, colors.ink, style = Stroke(0.018f * w, cap = StrokeCap.Round))
+                }
+                if (eyeScale > 1.1f && blink < 0.5f) {
+                    drawCircle(colors.page, ew * 0.18f * (eyeScale - 1f) * 3f, Offset(center.x - ew * 0.12f, center.y - eyeH * 0.22f))
                 }
             }
             drawFront(studentId, profile.color, colors, outline)
@@ -253,12 +271,10 @@ fun StudentFigure(
 private data class Reaction(val tilt: Float = 0f, val lift: Float = 0f, val stretch: Float = 0f, val lid: Float = 0f, val eyeDx: Float = 0f, val eyeDy: Float = 0f)
 
 private fun StudentId.reaction(r: Float): Reaction = when (this) {
-    // Tilts the head and squints.
-    StudentId.MIRA -> Reaction(tilt = -8f * r, lid = 0.4f * r)
-    // A quick bounce and a sideways look.
-    StudentId.PIP -> Reaction(lift = -0.05f * r, stretch = 0.03f * r, eyeDx = 0.06f * r)
-    // A slow lean back, eyes up.
-    StudentId.JUNO -> Reaction(tilt = 5f * r, stretch = -0.025f * r, lift = 0.015f * r, eyeDy = -0.045f * r, lid = 0.1f * r)
+    // Doubt: lids come halfway down, level, and the student leans back a little, eyes aside.
+    StudentId.MIRA -> Reaction(tilt = 3f * r, lift = 0.015f * r, stretch = -0.025f * r, lid = 0.55f * r, eyeDx = -0.03f * r)
+    StudentId.PIP -> Reaction(tilt = -3f * r, lift = 0.015f * r, stretch = -0.03f * r, lid = 0.55f * r, eyeDx = 0.035f * r)
+    StudentId.JUNO -> Reaction(tilt = 4f * r, lift = 0.015f * r, stretch = -0.025f * r, lid = 0.5f * r, eyeDx = 0.025f * r)
 }
 
 /** In/out durations; the whole reaction fits inside the lesson's unconvinced beat (550 ms). */

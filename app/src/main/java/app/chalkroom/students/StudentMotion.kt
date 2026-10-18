@@ -46,6 +46,8 @@ data class FaceTargets(
     val tilt: Float,
     /** Vertical stretch of the body, e.g. +0.03 for a little "aha" lift. */
     val stretch: Float,
+    /** 0 = a flat lid edge, 1 = a lid that dips in the middle: soft, content eyes. */
+    val soft: Float = 0f,
 )
 
 fun Expression.targets(): FaceTargets = when (this) {
@@ -53,7 +55,7 @@ fun Expression.targets(): FaceTargets = when (this) {
     Expression.THINKING -> FaceTargets(0.92f, 0.05f, -0.045f, 0f, 0.12f, 4f, 0f)
     Expression.PUZZLED -> FaceTargets(1f, 0f, 0f, 0.35f, 0.05f, -6f, 0f)
     Expression.GOT_IT -> FaceTargets(1.3f, 0f, -0.01f, 0f, 0f, 0f, 0.03f)
-    Expression.RELAXED -> FaceTargets(0.98f, 0f, 0.005f, 0f, 0.16f, 2f, -0.01f)
+    Expression.RELAXED -> FaceTargets(1f, 0f, 0.012f, 0f, 0.42f, 3f, -0.015f, soft = 1f)
 }
 
 /** Expressions where the eyes wander on their own. */

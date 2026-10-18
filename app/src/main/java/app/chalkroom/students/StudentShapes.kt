@@ -49,7 +49,7 @@ object StudentShapes {
             moteCenter = Offset(0.53f, 0.75f), moteRx = 0.45f, moteTop = 0.10f, moteSpan = 130f,
         )
         StudentId.PIP -> FaceLayout(
-            center = Offset(0.58f, 0.89f), eyeGap = 0.225f, eyeW = 0.055f, eyeH = 0.12f, eyeTilt = -8f, eyeSlope = -0.025f,
+            center = Offset(0.58f, 0.89f), eyeGap = 0.225f, eyeW = 0.055f, eyeH = 0.12f, eyeTilt = 8f, eyeSlope = -0.025f,
             moteCenter = Offset(0.50f, 0.85f), moteRx = 0.48f, moteTop = 0.12f, moteSpan = 120f,
         )
         StudentId.JUNO -> FaceLayout(
