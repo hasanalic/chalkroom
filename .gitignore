@@ -1,0 +1,12 @@
+/devpost/learner-profile.md
+.env
+.env.*
+!.env.example
+local.properties
+.gradle/
+build/
+.idea/
+.kotlin/
+*.jks
+*.keystore
+.DS_Store

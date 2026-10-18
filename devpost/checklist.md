@@ -1,0 +1,116 @@
+---
+doc: checklist
+status: approved
+---
+
+# Build Checklist
+
+Build mode: fast
+
+## Slices
+
+- [x] **1. A notes paragraph comes back as Mira's misconceptions**
+  Becomes usable: `curl POST /decks` against the local server returns a real Gemini-generated deck (language, topicTitle, 0–8 first-person misconceptions with refutations) for Mira, Pip or Juno.
+  Why now: The riskiest unknowns live here (Gen AI Java SDK from Kotlin, `responseSchema`, current model ids, safety-block shape). Bootstrapping the Gradle project and `:shared` DTOs rides along. Proves the kernel's first half with runnable evidence.
+  PRD ref: `prd.md > Reading and Misconception Creation`, `prd.md > Students and Their Flaws`
+  Spec ref: `spec.md > Shared Contract (:shared)`, `spec.md > Server: Deck Endpoint (POST /decks)`, `spec.md > Server: Misconception Generator`, `spec.md > Server: Student Prompts`, `spec.md > Server: AI Error Mapping`, `spec.md > Stack`, `spec.md > File Structure`
+  Build: Gradle wrapper + version catalog with `:shared` and `:server`; all DTOs/enums/`TurnLimits`/`ErrorBody` in `:shared`; `Config.kt`, `GeminiClient.kt` (SDK wrapper, finish-reason/empty/parse → `AiUnavailable`), `StudentPrompts.kt`, `MisconceptionGenerator.kt`, `Application.kt` + `Routes.kt` with `/decks` (150–8,000 validation, ids assigned, 502 mapping), per-IP rate limits.
+  Verify (mechanical): `./gradlew :server:build` passes; with `GEMINI_API_KEY` set, `./gradlew :server:run`, then curl `/decks` with a short biology paragraph for MIRA returns 200 with ≥1 first-person misconception; 100-char notes → 400 `notes_length`; bad key → 502 `ai_unavailable`.
+  Learner check: Start the server with your key, curl `/decks` with your own notes for two students, and read whether the misconceptions feel believable and flaw-shaped.
+  Commit: `Add shared DTOs and /decks misconception generator`
+
+- [ ] **2. An explanation gets judged yes/no with an in-character reply**
+  Becomes usable: `curl POST /lessons/turn` returns `{addressed, reply}`; vague explanations get pushback, precise ones an acknowledgment that echoes your words; turn 4+ misses return `reply: null`; a 6th turn is 409.
+  Why now: Second half of the kernel. Must exist before evals can test it.
+  PRD ref: `prd.md > Teaching a Misconception`, `prd.md > What the Student May and May Not Say`, `prd.md > Getting Unstuck`
+  Spec ref: `spec.md > Server: Turn Endpoint (POST /lessons/turn)`, `spec.md > Server: Turn Judge`, `spec.md > Server: Abuse Protection`, `spec.md > App ↔ Server API`
+  Build: `TurnJudge.kt` (Flash, low temperature, `{addressed, reply}` schema, NORMAL/SIMPLIFY/judge-only prompt rules), `/lessons/turn` route with length caps, turn counting, 409 `turn_limit` without model call, server-side null-out of judge-only misses.
+  Verify (mechanical): `./gradlew :server:build`; curl a vague explanation → `addressed:false` + reply; precise → `addressed:true` + reply; 3 prior exchanges + vague → `reply:null`; 5 prior → 409; 2,001-char explanation → 400.
+  Learner check: Curl one vague and one precise explanation for the deck from slice 1 and judge whether the replies stay in character and never leak the answer.
+  Commit: `Add /lessons/turn judge with turn limits`
+
+- [ ] **3. Evals report judge consistency, say-rules and flaw shaping**
+  Becomes usable: `./gradlew :server:test` runs ~10 real-API cases and writes `server/build/eval-report.md` with a ✓/✗ table per case × run.
+  Why now: The learner's main learning goal; tells us whether Flash holds as judge before any UI is built on top of it.
+  PRD ref: `prd.md > AI Quality Evals`, `prd.md > What the Student May and May Not Say`
+  Spec ref: `spec.md > Evals (:server tests)`, `spec.md > File Structure`
+  Build: JUnit 5 setup; `evals/cases/*.json`; `JudgeConsistencyEval` (6 cases × 3 runs incl. Turkish + turn-4 null-reply via the route), `SayRulesEval` (string check + `Grader`), `FlawShapingEval` (3 notes × 3 students), `EvalReport`. Gated by `assumeTrue`. Tune prompts / `TURN_MODEL` if cases flake.
+  Verify (mechanical): Without key: tests skip, build green. With key: all cases pass 3/3 and the report file exists with the per-run table.
+  Learner check: Open `server/build/eval-report.md` and check whether the borderline cases and reasons match your own judgment.
+  Commit: `Add Gemini evals with per-run report`
+
+- [ ] **4. The classroom opens and Mira reads your notes on the emulator**
+  Becomes usable: On the emulator: classroom with Mira, Pip and Juno drawn in code (breathing, blinking) → Teach something → paste notes (150–8,000 limits) → choose student with fixed intros → Reading screen calls the local server, motes appear one by one, count spoken, student looks up. Empty deck and failure states work; Back cancels.
+  Why now: First visible app; bootstraps `:app` (Compose, Koin, Navigation, Ktor client, theme) and the one `StudentFigure` every later screen reuses.
+  PRD ref: `prd.md > The Core Journey` (steps 1–4), `prd.md > Screens and Layout > Classroom / Paste Notes / Choose Who You Teach / Reading`, `prd.md > Look and Feel`, `prd.md > States and Boundaries`
+  Spec ref: `spec.md > Look and Feel`, `spec.md > App: Student Catalog`, `spec.md > App: Student Figure (character component)`, `spec.md > App: Chalkroom API Client`, `spec.md > App: Lesson Repository`, `spec.md > App: Screens`, `spec.md > App: Navigation`, `spec.md > Where It Runs and How Someone Tries It`
+  Build: `:app` module (minSdk 26, `BuildConfig.API_BASE_URL` from `local.properties`), `ChalkroomTheme`, `StudentCatalog`, `StudentShapes`/`StudentMotion`/`StudentFigure` with motes, `ChalkroomApi`, `LessonRepository` + `LessonLogic.startLesson`, Classroom/PasteNotes/ChooseStudent/Reading MVI screens, routes.
+  Verify (mechanical): `./gradlew :app:assembleDebug` passes; install on `emulator-5554`, drive the flow with `adb -e` input + screenshots against the local server; confirm motes count equals deck size, a 100-char paste keeps Continue disabled, server stopped → "lost the thread" + Try again.
+  Learner check: Run the app on the emulator, paste your notes, pick a student and watch them read. Say whether the classroom and characters feel like the picture-book room you pictured.
+  Commit: `Add classroom, paste, choose and reading screens`
+
+- [ ] **5. You can teach a misconception until it clears, through to closing**
+  Becomes usable: Full core journey on the emulator: the student states misconception 1; vague → unconvinced reaction + reply; precise → clearing choreography at fixed timings with two haptics, counter + bar drop, reply echoes your words, next misconception; after the last one, Closing with "Nothing left in [Name]'s head", relief line, What stuck, notebook closes with topicTitle, then Teach [Name] something else / Back to class.
+  Why now: This is the kernel in the product; everything after it is unstuck/pause polish.
+  PRD ref: `prd.md > Screens and Layout > Lesson / Closing`, `prd.md > Teaching a Misconception`, `prd.md > Closing and What Stuck`
+  Spec ref: `spec.md > App: Clearing Choreography`, `spec.md > App: Screens`, `spec.md > Data Model`, `spec.md > The Core Journey Through the System`
+  Build: `LessonLogic` (`recordTry`, `clearCurrent`, `finish`, `stageFor`) + unit tests; Lesson screen (current-line card, last explanation, input lock, thinking look, unconvinced reaction, failure → text returns + Try again); `ClearingChoreography`; Closing screen.
+  Verify (mechanical): `./gradlew :app:testDebugUnitTest` (lesson logic) passes; on emulator drive a 2–3 misconception deck: a vague try leaves counter unchanged, precise try drops it by 1, closing shows What stuck with the sentences sent.
+  Learner check: Teach a student your notes from start to finish, including one deliberately vague explanation, and tell me how the clearing moment feels.
+  Commit: `Add lesson loop, clearing sequence and closing`
+
+- [ ] **6. Getting unstuck and pausing work like the PRD says**
+  Becomes usable: Attempt 3 asks you to start from the beginning (placeholder from try 4); missed 4th → fixed stuck line + See the answer / One last try; answer card → Continue clears without entering What stuck; never a 6th try. Back pauses; classroom board shows the most recent paused lesson; tapping the student/board/Continue resumes exactly (incl. stuck/answer card); several paused at once; closing returns the desk to idle.
+  Why now: Depends on the lesson loop; completes every must-have behavior.
+  PRD ref: `prd.md > Getting Unstuck`, `prd.md > Pausing and Resuming`, `prd.md > Screens and Layout > Classroom`
+  Spec ref: `spec.md > Data Model` (rules, stage table, turn limit), `spec.md > App: Lesson Repository`, `spec.md > App: Screens`
+  Build: `markStuck`, `chooseLastTry`, `revealAnswer`, `clearRevealed`, `pause` + unit tests; stuck/answer-card UI; 409 → answer card; board, paused desks (open notebook + motes), resume paths.
+  Verify (mechanical): Unit tests for the full stage/turn-limit table and reveal-vs-clear rules pass; on emulator: 4 vague tries → stuck buttons, See the answer → card → Continue → counter −1 and item absent from What stuck; Back mid-lesson → board shows it, resume restores same line/count/phase.
+  Learner check: Get a student stuck on purpose, try both buttons, then leave mid-lesson and come back from the board.
+  Commit: `Add stuck flow, answer card, pause and resume`
+
+- [ ] **7. Stand-in upgrades: reading words, ambient life, eyes-lead, history sheet and props**
+  Becomes usable: Words drift from notes into the head during Reading; one small ambient action per student every 12–20s; eyes lead and head follows; "N exchanges" sheet; desk props (doodle, askew notebook, plant).
+  Why now: PRD orders these after the must-haves; each is optional if time runs short.
+  PRD ref: `prd.md > What We're Building` (stand-ins 1–4)
+  Spec ref: `spec.md > App: Student Figure (character component)`, `spec.md > App: Screens`
+  Build: Upgrades 1→4 in PRD order, each kept behind the same `StudentFigure` API.
+  Verify (mechanical): `./gradlew :app:assembleDebug` + unit tests pass; emulator screenshots show each upgrade; core journey still completes.
+  Learner check: Sit in the classroom for a minute and run one lesson; say whether the extra life helps or distracts.
+  Commit: `Add stand-in upgrades for reading, ambient life and history`
+
+- [ ] **8. Judges can install the APK and try it without a key**
+  Becomes usable: Server deployed on Railway via `server/Dockerfile`; debug APK built against the Railway URL, attached to a GitHub Release; README with what it is, install-the-APK steps, and full local-run steps (server env vars, `local.properties`, evals).
+  Why now: Needs the finished app and server; judges' path to trying it.
+  PRD ref: `prd.md > The Core Journey`
+  Spec ref: `spec.md > Where It Runs and How Someone Tries It`, `spec.md > External Services and Dependencies > Railway`
+  Build: `server/Dockerfile` (fat JAR → JRE); README; Railway deploy (learner sets env vars in the dashboard); `assembleDebug` with `chalkroom.apiBaseUrl` = Railway URL; GitHub Release with the APK (learner approves publishing).
+  Verify (mechanical): `./gradlew :server:buildFatJar` passes; curl the Railway `/decks` returns 200; the release APK installed on `emulator-5554` completes Reading against Railway.
+  Learner check: Install the APK from the Release on a fresh emulator and teach one misconception against the deployed server.
+  Commit: `Add Dockerfile, README and release setup`
+
+## Hands-on Checkpoints
+
+- [ ] Early usable behavior explored — after slice 2 (curl `/decks` + `/lessons/turn` with your own notes; shapes prompts before evals lock them in), and after slice 5 (first full teach on the emulator)
+- [ ] Final kick-the-tires exploration and feedback completed
+
+## Final Review
+
+- [ ] Final review complete — feedback resolved and learner confirms ready to ship
+
+## Code Tour and App Map
+
+- [ ] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap
+- [ ] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
+- [ ] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
+
+Activity and evidence: 
+Route and stops: 
+Edit outcome: 
+Reflection: 
+Activity mode: 
+
+## Revisions
+
+- Debug APK now distributed via GitHub Releases, pointing at the deployed server (spec said "APK is not distributed") — learner ground rule: judges must try the app without their own key.
+- On-device checks and demo recording use the Android emulator only (spec mentioned a device/scrcpy and checking haptic feel on a device) — learner ground rule; haptic feel is judged on the emulator or left for the learner.
