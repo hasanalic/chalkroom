@@ -7,8 +7,11 @@ import app.chalkroom.shared.StudentId
 data class ClassState(
     val lastNotes: String = "",
     val lessons: Map<StudentId, Lesson> = emptyMap(), // at most one per student
-    val lastPausedStudentId: StudentId? = null, // drives the board
-)
+    val pauseOrder: List<StudentId> = emptyList(), // paused students, most recent last
+) {
+    /** Drives the board: the most recently paused lesson still paused. */
+    val lastPausedStudentId: StudentId? get() = pauseOrder.lastOrNull()
+}
 
 data class Lesson(
     val studentId: StudentId,

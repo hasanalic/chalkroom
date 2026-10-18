@@ -59,7 +59,7 @@ Build mode: fast
   Learner check: Teach a student your notes from start to finish, including one deliberately vague explanation, and tell me how the clearing moment feels.
   Commit: `Add lesson loop, clearing sequence and closing`
 
-- [ ] **6. Getting unstuck and pausing work like the PRD says**
+- [x] **6. Getting unstuck and pausing work like the PRD says**
   Becomes usable: Attempt 3 asks you to start from the beginning (placeholder from try 4); missed 4th → fixed stuck line + See the answer / One last try; answer card → Continue clears without entering What stuck; never a 6th try. Back pauses; classroom board shows the most recent paused lesson; tapping the student/board/Continue resumes exactly (incl. stuck/answer card); several paused at once; closing returns the desk to idle.
   Why now: Depends on the lesson loop; completes every must-have behavior.
   PRD ref: `prd.md > Getting Unstuck`, `prd.md > Pausing and Resuming`, `prd.md > Screens and Layout > Classroom`
@@ -69,7 +69,17 @@ Build mode: fast
   Learner check: Get a student stuck on purpose, try both buttons, then leave mid-lesson and come back from the board.
   Commit: `Add stuck flow, answer card, pause and resume`
 
-- [ ] **7. Stand-in upgrades: reading words, ambient life, eyes-lead, history sheet and props**
+- [ ] **7. Design pass**
+  Becomes usable: To be set from the learner's design brief (pending). Not droppable.
+  Why now: All must-have behavior works end to end; the look and feel gets its own pass before the optional upgrades and the deploy.
+  PRD ref: `prd.md > Screens and Layout` (to be refined from the brief)
+  Spec ref: `spec.md > Look and Feel` (to be refined from the brief)
+  Build: Pending the learner's design brief.
+  Verify (mechanical): `./gradlew :app:assembleDebug` + unit tests pass; emulator screenshots of every screen; core journey still completes.
+  Learner check: Walk the full core journey on the emulator and compare each screen with the brief.
+  Commit: `Apply design pass`
+
+- [ ] **8. Stand-in upgrades: reading words, ambient life, eyes-lead, history sheet and props**
   Becomes usable: Words drift from notes into the head during Reading; one small ambient action per student every 12–20s; eyes lead and head follows; "N exchanges" sheet; desk props (doodle, askew notebook, plant).
   Why now: PRD orders these after the must-haves; each is optional if time runs short.
   PRD ref: `prd.md > What We're Building` (stand-ins 1–4)
@@ -79,7 +89,7 @@ Build mode: fast
   Learner check: Sit in the classroom for a minute and run one lesson; say whether the extra life helps or distracts.
   Commit: `Add stand-in upgrades for reading, ambient life and history`
 
-- [ ] **8. Judges can install the APK and try it without a key**
+- [ ] **9. Judges can install the APK and try it without a key**
   Becomes usable: Server deployed on Railway via `server/Dockerfile`; debug APK built against the Railway URL, attached to a GitHub Release; README with what it is, install-the-APK steps, and full local-run steps (server env vars, `local.properties`, evals).
   Why now: Needs the finished app and server; judges' path to trying it.
   PRD ref: `prd.md > The Core Journey`
@@ -91,7 +101,7 @@ Build mode: fast
 
 ## Hands-on Checkpoints
 
-- [ ] Early usable behavior explored — after slice 2 (curl `/decks` + `/lessons/turn` with your own notes; shapes prompts before evals lock them in), and after slice 5 (first full teach on the emulator)
+- [x] Early usable behavior explored — after slice 2 (curl `/decks` + `/lessons/turn` with your own notes; shapes prompts before evals lock them in), and after slice 5 (first full teach on the emulator)
 - [ ] Final kick-the-tires exploration and feedback completed
 
 ## Final Review
@@ -121,3 +131,6 @@ Activity mode:
 - Decks fixed at 3 from 5 candidates with one retry; every belief must be false as stated; say-rule leak check narrowed to stating/paraphrasing (re-scored: 18/18). Flaw shaping re-run once: 9/9 decks of 3, true-but-incomplete beliefs gone, overall 85.2%, but Mira 7/9 (target 7/8) and one Mira/Pip overlap on supply_demand. Recorded in `server/eval-report.md`, not tuned.
 - Slice 4 build setup: AGP 9.4.1 needs Gradle ≥ 9.6, so the wrapper moved to 9.8.1; the current AndroidX/Compose releases need compileSdk 37 (targetSdk 37). The UI font is the system sans for now (Nunito was only a suggestion; stand-in for slice 7). Reading lands on a minimal Lesson view (student, counter, misconception 1) that slice 5 turns into the teaching screen.
 - Slice 5 pulled the stuck flow forward: all `LessonLogic` steps (`markStuck`, `chooseLastTry`, `revealAnswer`, `clearRevealed`, `pause`) plus the stuck buttons, answer card and 409 → answer card are built and tested, so a hands-on lesson can never dead-end at turn 4. Slice 6 is left with pause/resume: board, paused desks and the resume paths. Verified on emulator: vague try keeps the counter, precise try clears at the fixed timeline with pad squiggles, failed turn returns your words, attempt 3 asks to start over, missed 4th shows the stuck line, See the answer → Continue drops the counter and stays out of What stuck, closing hides What stuck when nothing was cleared by you.
+- After the slice 5 hands-on check (learner feedback): acknowledgments after a clear never ask a question (turn prompt + say-rule string check, no "?" in a hit reply); a deck's beliefs must each be about a different fact (deck prompt); closing options pinned at the bottom with What stuck scrolling above, and the closing scrolls the notebook into view before it closes. Smoke-checked with one `/decks` and one `/lessons/turn` call; no full eval run, per learner instruction.
+- Slice 6: `lastPausedStudentId` is now derived from a `pauseOrder` list, so when the board's lesson is resumed the board falls back to the next most recently paused one instead of going blank while other lessons are still paused. The lesson pauses when its screen is left (ViewModel cleared) and resumes when it opens; a lesson left during its last clearing opens straight into the closing. Verified on emulator: Back mid-lesson → board + open notebook + motes; resume from board, desk tap and Choose → Continue restores the same line and count, including the stuck buttons and the answer card; Mira and Pip paused at once; closing returns the desk to idle and the board falls back to Mira.
+- Checklist reordered by the learner: new slice 7 "Design pass" (not droppable, built from a design brief the learner will send); stand-in upgrades move to slice 8 (references to "slice 7" above for stand-ins now mean slice 8); deploy becomes slice 9.

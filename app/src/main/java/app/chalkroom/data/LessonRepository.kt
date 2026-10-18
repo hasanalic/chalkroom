@@ -20,7 +20,22 @@ class LessonRepository {
 
     /** Replaces any earlier lesson for this student. */
     fun startLesson(studentId: StudentId, deck: CreateDeckResponse) = _state.update {
-        it.copy(lessons = it.lessons + (studentId to LessonLogic.startLesson(studentId, deck)))
+        it.copy(
+            lessons = it.lessons + (studentId to LessonLogic.startLesson(studentId, deck)),
+            pauseOrder = it.pauseOrder - studentId,
+        )
+    }
+
+    /** Leaving a lesson: it stays exactly as it is, marked paused, and becomes the board's lesson. */
+    fun pause(studentId: StudentId) = _state.update { s ->
+        val lesson = s.lessons[studentId] ?: return@update s
+        s.copy(lessons = s.lessons + (studentId to LessonLogic.pause(lesson)), pauseOrder = s.pauseOrder - studentId + studentId)
+    }
+
+    /** Opening a lesson again. The board falls back to the next most recently paused one. */
+    fun resume(studentId: StudentId) = _state.update { s ->
+        val lesson = s.lessons[studentId] ?: return@update s
+        s.copy(lessons = s.lessons + (studentId to LessonLogic.resume(lesson)), pauseOrder = s.pauseOrder - studentId)
     }
 
     /** Applies a pure [LessonLogic] step to this student's lesson; no-op when there is none. */
@@ -35,7 +50,7 @@ class LessonRepository {
         _state.update { s ->
             s.copy(
                 lessons = s.lessons - studentId,
-                lastPausedStudentId = s.lastPausedStudentId.takeUnless { it == studentId },
+                pauseOrder = s.pauseOrder - studentId,
             )
         }
         return lesson

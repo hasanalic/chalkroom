@@ -48,6 +48,11 @@ class LessonViewModel(
     val effects = _effects.receiveAsFlow()
 
     init {
+        repository.resume(studentId)
+        // Left during the last clearing: the lesson is already done, so go straight to the closing.
+        if (repository.lesson(studentId)?.let(LessonLogic::isFinished) == true) {
+            viewModelScope.launch { _effects.send(UiEffect.OpenClosing) }
+        }
         viewModelScope.launch {
             repository.state.collect { s -> _state.update { it.copy(lesson = s.lessons[studentId]) } }
         }
@@ -157,6 +162,11 @@ class LessonViewModel(
         } finally {
             withContext(NonCancellable) { commit() }
         }
+    }
+
+    /** Leaving the lesson pauses it. A finished lesson was already removed by the closing, so this is a no-op then. */
+    override fun onCleared() {
+        repository.pause(studentId)
     }
 
     companion object {

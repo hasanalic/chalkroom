@@ -127,7 +127,11 @@ private fun Board(board: ClassroomContract.Board?, onTap: () -> Unit) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("${board.name} left this here", style = Chalkroom.type.chalk)
                 Text(
-                    "${board.remaining} ${if (board.remaining == 1) "thing still doesn't" else "things still don't"} click",
+                    when (board.remaining) {
+                        0 -> "Nothing left that doesn't click"
+                        1 -> "1 thing still doesn't click"
+                        else -> "${board.remaining} things still don't click"
+                    },
                     style = Chalkroom.type.chalk.copy(color = colors.chalk.copy(alpha = 0.75f)),
                     textAlign = TextAlign.Center,
                 )
