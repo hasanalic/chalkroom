@@ -1,0 +1,119 @@
+[
+  {
+    "id": "vague",
+    "label": "Clearly vague",
+    "studentId": "MIRA",
+    "language": "en",
+    "statement": "I think plants make their glucose just by combining water from their roots and carbon dioxide from the air.",
+    "refutation": "Plants must use light energy absorbed by chlorophyll to combine water and carbon dioxide into glucose.",
+    "explanation": "That's not how it works. Read the notes again and think about it.",
+    "expectedAddressed": false,
+    "priorExchanges": [],
+    "stage": "NORMAL",
+    "viaRoute": false
+  },
+  {
+    "id": "precise",
+    "label": "Clearly precise",
+    "studentId": "MIRA",
+    "language": "en",
+    "statement": "I think plants make their glucose just by combining water from their roots and carbon dioxide from the air.",
+    "refutation": "Plants must use light energy absorbed by chlorophyll to combine water and carbon dioxide into glucose.",
+    "explanation": "Water and carbon dioxide alone aren't enough. The plant needs light energy, which the chlorophyll in its chloroplasts absorbs, to power combining them into glucose.",
+    "expectedAddressed": true,
+    "priorExchanges": [],
+    "stage": "NORMAL",
+    "viaRoute": false
+  },
+  {
+    "id": "half_right",
+    "label": "Half-right (true fact, core error stands)",
+    "studentId": "PIP",
+    "language": "en",
+    "statement": "So at night during respiration, the plant takes in carbon dioxide and releases oxygen, right?",
+    "refutation": "During respiration the plant uses glucose and releases carbon dioxide; taking in carbon dioxide and releasing oxygen is photosynthesis, which needs light.",
+    "explanation": "At night there's no light, so photosynthesis stops then.",
+    "expectedAddressed": false,
+    "priorExchanges": [],
+    "stage": "NORMAL",
+    "viaRoute": false
+  },
+  {
+    "id": "wrong_reasoning",
+    "label": "Right words, wrong reasoning",
+    "studentId": "MIRA",
+    "language": "en",
+    "statement": "I think plants make their glucose just by combining water from their roots and carbon dioxide from the air.",
+    "refutation": "Plants must use light energy absorbed by chlorophyll to combine water and carbon dioxide into glucose.",
+    "explanation": "You also need light and chlorophyll: the light warms the leaf up so the water and carbon dioxide can mix, and the green chlorophyll keeps the heat in.",
+    "expectedAddressed": false,
+    "priorExchanges": [],
+    "stage": "NORMAL",
+    "viaRoute": false
+  },
+  {
+    "id": "other_misconception",
+    "label": "Addresses a different misconception",
+    "studentId": "MIRA",
+    "language": "en",
+    "statement": "I think plants make their glucose just by combining water from their roots and carbon dioxide from the air.",
+    "refutation": "Plants must use light energy absorbed by chlorophyll to combine water and carbon dioxide into glucose.",
+    "explanation": "The soil doesn't give the plant any food. It only supplies water and minerals; the plant makes its own food.",
+    "expectedAddressed": false,
+    "priorExchanges": [],
+    "stage": "NORMAL",
+    "viaRoute": false
+  },
+  {
+    "id": "tr_vague",
+    "label": "Turkish, vague",
+    "studentId": "MIRA",
+    "language": "tr",
+    "statement": "Bitkilerin besin üretmesi için havadan karbondioksit ve köklerinden su alması yeterli diye anladım. Bunları birleştirmek için başka bir şeye ihtiyaçları yok, değil mi?",
+    "refutation": "Karbondioksit ve suyu birleştirip glikoz üretebilmek için bitkilerin klorofil aracılığıyla emdikleri ışık enerjisine de ihtiyacı vardır.",
+    "explanation": "Hayır, öyle değil. Notlara tekrar bak ve düşün.",
+    "expectedAddressed": false,
+    "priorExchanges": [],
+    "stage": "NORMAL",
+    "viaRoute": false
+  },
+  {
+    "id": "tr_precise",
+    "label": "Turkish, precise",
+    "studentId": "MIRA",
+    "language": "tr",
+    "statement": "Bitkilerin besin üretmesi için havadan karbondioksit ve köklerinden su alması yeterli diye anladım. Bunları birleştirmek için başka bir şeye ihtiyaçları yok, değil mi?",
+    "refutation": "Karbondioksit ve suyu birleştirip glikoz üretebilmek için bitkilerin klorofil aracılığıyla emdikleri ışık enerjisine de ihtiyacı vardır.",
+    "explanation": "Sadece su ve karbondioksit yetmez. Bitkinin bunları birleştirip glikoz yapabilmesi için klorofilin emdiği ışık enerjisine ihtiyacı var.",
+    "expectedAddressed": true,
+    "priorExchanges": [],
+    "stage": "NORMAL",
+    "viaRoute": false
+  },
+  {
+    "id": "turn4_vague_route",
+    "label": "Turn 4 vague via /lessons/turn (expects reply null)",
+    "studentId": "MIRA",
+    "language": "en",
+    "statement": "I think plants make their glucose just by combining water from their roots and carbon dioxide from the air.",
+    "refutation": "Plants must use light energy absorbed by chlorophyll to combine water and carbon dioxide into glucose.",
+    "explanation": "That's not how it works. Read the notes again and think about it.",
+    "expectedAddressed": false,
+    "priorExchanges": [
+      {
+        "explanation": "You're missing something.",
+        "reply": "What am I missing, though? The water and the carbon dioxide are both right there."
+      },
+      {
+        "explanation": "You're missing something.",
+        "reply": "What am I missing, though? The water and the carbon dioxide are both right there."
+      },
+      {
+        "explanation": "You're missing something.",
+        "reply": "What am I missing, though? The water and the carbon dioxide are both right there."
+      }
+    ],
+    "stage": "NORMAL",
+    "viaRoute": true
+  }
+]

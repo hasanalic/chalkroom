@@ -29,7 +29,7 @@ Build mode: fast
   Learner check: Curl one vague and one precise explanation for the deck from slice 1 and judge whether the replies stay in character and never leak the answer.
   Commit: `Add /lessons/turn judge with turn limits`
 
-- [ ] **3. Evals report judge consistency, say-rules and flaw shaping**
+- [x] **3. Evals report judge consistency, say-rules and flaw shaping**
   Becomes usable: `./gradlew :server:test` runs ~10 real-API cases and writes `server/build/eval-report.md` with a ✓/✗ table per case × run.
   Why now: The learner's main learning goal; tells us whether Flash holds as judge before any UI is built on top of it.
   PRD ref: `prd.md > AI Quality Evals`, `prd.md > What the Student May and May Not Say`
@@ -114,3 +114,7 @@ Activity mode:
 
 - Debug APK now distributed via GitHub Releases, pointing at the deployed server (spec said "APK is not distributed") — learner ground rule: judges must try the app without their own key.
 - On-device checks and demo recording use the Android emulator only (spec mentioned a device/scrcpy and checking haptic feel on a device) — learner ground rule; haptic feel is judged on the emulator or left for the learner.
+- Model setup changed to `gemini-3.6-flash` (decks, grader) and `gemini-3.5-flash-lite` (rounds), temperature 1, per-role thinking/max-token settings — learner decision after the Pro preview hit quota (429) during evals; see `spec.md > Revisions`.
+- Generator now self-labels each misconception's flaw and the server keeps only the student's own flaw; grader votes 3× per belief — evals showed flaw drift (Mira → confusion) and single-call grader noise.
+- Slice 3 committed against the learner's thresholds (judge 3/3 all cases; say-rules ≥ 90% with the no-refutation-leak rule at 100%; flaw shaping ≥ 80% majority vote) instead of all-must-pass. The no-leak rule failed (17/18) on the single allowed run; recorded as a known limitation in `server/eval-report.md`, not tuned per learner instruction.
+- `/decks` tops up to 3 with non-matching items when the flaw filter leaves fewer (`selectMisconceptions`, unit-tested). It can't add items the model never returned: a smoke call on `gemini-3.6-flash` returned only 2.

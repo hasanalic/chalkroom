@@ -48,5 +48,10 @@ tasks.named<JavaExec>("run") {
 tasks.test {
     useJUnitPlatform()
     environment(dotEnv)
-    testLogging { events("passed", "skipped", "failed") }
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = true
+    }
+    // Evals hit a live model; rerun them every time instead of trusting Gradle's up-to-date check.
+    outputs.upToDateWhen { false }
 }

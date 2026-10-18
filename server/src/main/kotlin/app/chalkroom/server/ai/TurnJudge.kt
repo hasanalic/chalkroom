@@ -1,11 +1,11 @@
 package app.chalkroom.server.ai
 
+import app.chalkroom.server.ModelSettings
 import app.chalkroom.shared.Exchange
 import app.chalkroom.shared.Stage
 import app.chalkroom.shared.StudentId
 import app.chalkroom.shared.TurnLimits
 import com.google.genai.types.Schema
-import com.google.genai.types.ThinkingLevel
 import com.google.genai.types.Type
 import kotlinx.serialization.Serializable
 
@@ -30,16 +30,14 @@ data class TurnInput(
  * Decides yes/no whether the explanation corrects this misconception's core error, grounded in the
  * hidden refutation, and writes the student's next line.
  */
-class TurnJudge(private val gemini: GeminiClient, private val model: String) {
+class TurnJudge(private val gemini: GeminiClient, private val settings: ModelSettings) {
 
     suspend fun judge(input: TurnInput): JudgeVerdict = gemini.generateJson(
-        model = model,
+        settings = settings,
         systemPrompt = StudentPrompts.system(input.studentId) + "\n\n" + JUDGE_RULES,
         userPrompt = userPrompt(input),
         schema = SCHEMA,
         serializer = JudgeVerdict.serializer(),
-        temperature = 0.2f,
-        thinkingLevel = ThinkingLevel.Known.LOW,
     )
 
     private fun userPrompt(input: TurnInput): String = buildString {
@@ -96,6 +94,8 @@ class TurnJudge(private val gemini: GeminiClient, private val model: String) {
               Never praise or grade the user like a teacher ("great job", "correct", "exactly", "well done").
             - If not addressed: say what still confuses you, from a new angle (not repeating earlier replies),
               and end with a question the user can answer.
+              Never open by agreeing with or affirming the user ("Right", "Yes", "True", "Okay, you're right") — that judges them.
+              Start from your own thought instead.
               A pushback must NEVER contain, paraphrase, or hint at the refutation or any part of the correct answer:
               do not name the missing piece, the right term, or the right direction. Only describe your own confusion.
             - Never mention any other misconception or topic.

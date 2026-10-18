@@ -1,5 +1,6 @@
 package app.chalkroom.server.ai
 
+import app.chalkroom.server.ModelSettings
 import com.google.genai.Client
 import com.google.genai.errors.ApiException
 import com.google.genai.types.Content
@@ -9,7 +10,6 @@ import com.google.genai.types.HttpOptions
 import com.google.genai.types.Part
 import com.google.genai.types.Schema
 import com.google.genai.types.ThinkingConfig
-import com.google.genai.types.ThinkingLevel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
@@ -32,20 +32,20 @@ class GeminiClient(apiKey: String, timeoutMs: Int = 28_000) {
     private val json = Json { ignoreUnknownKeys = true }
 
     suspend fun <T> generateJson(
-        model: String,
+        settings: ModelSettings,
         systemPrompt: String,
         userPrompt: String,
         schema: Schema,
         serializer: KSerializer<T>,
-        temperature: Float? = null,
-        thinkingLevel: ThinkingLevel.Known? = null,
     ): T {
+        val model = settings.model
         val config = GenerateContentConfig.builder()
             .systemInstruction(Content.fromParts(Part.fromText(systemPrompt)))
             .responseMimeType("application/json")
             .responseSchema(schema)
-            .apply { temperature?.let { temperature(it) } }
-            .apply { thinkingLevel?.let { thinkingConfig(ThinkingConfig.builder().thinkingLevel(it)) } }
+            .apply { settings.temperature?.let { temperature(it) } }
+            .apply { settings.maxOutputTokens?.let { maxOutputTokens(it) } }
+            .apply { settings.thinking?.let { thinkingConfig(ThinkingConfig.builder().thinkingLevel(it)) } }
             .build()
 
         val response = try {

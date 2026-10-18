@@ -1,0 +1,14 @@
+[
+  {
+    "id": "photosynthesis",
+    "notes": "Photosynthesis is how green plants make their own food. In the chloroplasts, chlorophyll absorbs light energy. The plant uses this energy to combine carbon dioxide from the air with water taken up by the roots, producing glucose and releasing oxygen as a by-product. The soil supplies water and minerals, but not food. Photosynthesis only happens when light is available; at night the plant still respires, using glucose and releasing carbon dioxide."
+  },
+  {
+    "id": "circulation",
+    "notes": "The human heart has four chambers. The two upper chambers, the atria, receive blood; the two lower chambers, the ventricles, pump blood out. The right ventricle pumps oxygen-poor blood to the lungs, where it picks up oxygen. The left ventricle pumps oxygen-rich blood to the rest of the body, which is why its muscular wall is thicker. Arteries carry blood away from the heart under high pressure, so they have thick elastic walls. Veins carry blood back to the heart under low pressure and have valves that stop blood flowing backwards."
+  },
+  {
+    "id": "supply_demand",
+    "notes": "In a competitive market, price is set where supply meets demand. When demand for a good rises while supply stays the same, a shortage appears at the old price, so the price rises until the quantity demanded equals the quantity supplied. A higher price also encourages producers to supply more, which is a movement along the supply curve, not a shift of it. A shift of the supply curve happens when something other than price changes, such as the cost of raw materials. If raw materials get cheaper, supply shifts right and the equilibrium price falls."
+  }
+]

@@ -29,14 +29,14 @@ private val log = LoggerFactory.getLogger("app.chalkroom.server")
 fun main() {
     val config = Config.fromEnv()
     if (config.geminiApiKey.isBlank()) log.warn("GEMINI_API_KEY is not set; AI calls will fail with 502")
-    log.info("Models: gen={} turn={}", config.genModel, config.turnModel)
+    log.info("Models: gen={} turn={}", config.gen, config.turn)
     embeddedServer(Netty, port = config.port, host = "0.0.0.0") { module(config) }.start(wait = true)
 }
 
 fun Application.module(config: Config) {
     val gemini = GeminiClient(config.geminiApiKey)
-    val generator = MisconceptionGenerator(gemini, config.genModel)
-    val judge = TurnJudge(gemini, config.turnModel)
+    val generator = MisconceptionGenerator(gemini, config.gen)
+    val judge = TurnJudge(gemini, config.turn)
 
     install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; explicitNulls = true }) }
     install(CallLogging)

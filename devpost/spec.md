@@ -40,10 +40,10 @@ PRD ref: `prd.md > The Core Journey`.
 2. **Paste notes.** `PasteNotesScreen` keeps the text in `LessonRepository.lastNotes`. The app enforces 150–8,000 characters before continuing.
 3. **Choose who you teach.** `ChooseStudentScreen` shows each student's **fixed** self-introduction from `StudentCatalog` (no network). A student with a paused lesson shows **Continue**.
 4. **Watch them read.** `ReadingScreen` sends `POST /decks {notes, studentId}`.
-   - **Server:** calls the Gemini Pro model (`GEN_MODEL`) with the student's flaw prompt and a response schema, then gets back the language, topic title, 0–8 misconceptions and their refutations. It assigns ids and returns `{language, topicTitle, misconceptions: [{id, statement, refutation}]}`.
+   - **Server:** calls `GEN_MODEL` with the student's flaw prompt and a response schema, then gets back the language, topic title, 0–8 misconceptions and their refutations. It assigns ids and returns `{language, topicTitle, misconceptions: [{id, statement, refutation}]}`.
    - **App:** creates a `Lesson` in `LessonRepository`. Motes appear one by one, the count is said, and the student looks up.
 5. **Lesson.** The student's current line is the current misconception's `statement`. You type an explanation, and `LessonViewModel` computes the stage and sends `POST /lessons/turn {statement, refutation, studentId, stage, language, explanation, priorExchanges}`.
-   - **Server:** counts your messages (`priorExchanges.size + 1`), refuses a 6th with 409 `turn_limit` (no model call), calls the Gemini Flash model (`TURN_MODEL`) with the refutation as judge-only context and a response schema, and returns `{addressed, reply}`. From turn 4 on, a miss returns `reply: null`.
+   - **Server:** counts your messages (`priorExchanges.size + 1`), refuses a 6th with 409 `turn_limit` (no model call), calls `TURN_MODEL` with the refutation as judge-only context and a response schema, and returns `{addressed, reply}`. From turn 4 on, a miss returns `reply: null`.
    - **App, not addressed (turns 1–3):** the unconvinced reaction plays, then `reply` becomes the current line. The try is recorded.
    - **App, not addressed on turn 4:** the unconvinced reaction plays, then the student's **fixed stuck line** from `StudentCatalog`, and **See the answer** / **One last try** appear. The input stays locked.
    - **App, not addressed on turn 5, See the answer, or a 409:** the answer card shows the refutation. **Continue** runs `ClearingChoreography` with no spoken line and the item is recorded as revealed (not in What stuck).
@@ -65,10 +65,15 @@ PRD ref: `prd.md > The Core Journey`.
 | Evals | JUnit 5 tests in `:server`, skipped when `GEMINI_API_KEY` is unset | — |
 | Hosting | Railway, Docker image of the Ktor fat JAR | https://docs.railway.com |
 
-Models (learner choice; exact ids verified at build time and set as env defaults in `Config.kt`):
-- **Reading** (`/decks`) uses the current **Gemini Pro** model (`GEN_MODEL`), where misconception quality matters most.
-- **Rounds** (`/lessons/turn`) use the current **Gemini Flash** model (`TURN_MODEL`), where latency matters. **The evals decide:** if Flash's judge consistency fails, rounds move to Pro (an env change).
-- **The eval grader** uses the current **Gemini Pro** model (`GRADER_MODEL`).
+Models (learner choice, revised during the build; defaults in `Config.kt`, every value env-overridable via `<ROLE>_MODEL`, `<ROLE>_THINKING`, `<ROLE>_MAX_TOKENS`, `<ROLE>_TEMPERATURE` with ROLE = `GEN`, `TURN`, `GRADER`):
+
+| Role | Model | Thinking | Max output tokens | Temperature |
+|---|---|---|---|---|
+| **Reading** (`/decks`, `GEN`) | `gemini-3.6-flash` | LOW | 8192 | 1 |
+| **Rounds** (`/lessons/turn`, judge + reply in one call, `TURN`) | `gemini-3.5-flash-lite` | MINIMAL | 1024 | 1 |
+| **Eval grader** (`GRADER`, evals only) | `gemini-3.6-flash` | LOW | default | 1 |
+
+**The evals decide:** if flash-lite's judge consistency fails, the learner decides the change (model or settings, via env).
 
 **Verify early in the build:**
 - **Exact library versions:** pin the latest stable when you start.
@@ -83,7 +88,7 @@ Models (learner choice; exact ids verified at build time and set as env defaults
 - **Server environment variables:**
   - `GEMINI_API_KEY`
   - `PORT`: Railway sets it, default 8080.
-  - `GEN_MODEL`, `TURN_MODEL`, `GRADER_MODEL`, optional. Defaults are the current Pro / Flash / Pro ids, verified at build time.
+  - `GEN_*`, `TURN_*`, `GRADER_*` (`_MODEL`, `_THINKING`, `_MAX_TOKENS`, `_TEMPERATURE`), optional. Defaults in the Stack table.
 - **App config:** `local.properties` has `chalkroom.apiBaseUrl` (gitignored), injected as `BuildConfig.API_BASE_URL`. Use `http://10.0.2.2:8080` for the emulator against the local server, or the Railway URL.
 - **Start locally:**
   1. `export GEMINI_API_KEY=…`
@@ -150,7 +155,7 @@ Validates lengths (400 `explanation_length`). Computes `turn = priorExchanges.si
 PRD ref: `prd.md > Teaching a Misconception`, `prd.md > Getting Unstuck`, `prd.md > What the Student May and May Not Say`.
 
 ### Server: Misconception Generator
-One `GEN_MODEL` (Gemini Pro) call with `responseMimeType = application/json` and a `responseSchema`:
+One `GEN_MODEL` call with `responseMimeType = application/json` and a `responseSchema`:
 `{language: string (BCP-47), topicTitle: string, misconceptions: [{statement: string, refutation: string}] (0..8)}`.
 - **System prompt:** the shared student rules plus the chosen student's persona and flaw from `StudentPrompts`.
 - **Instructions:**
@@ -159,10 +164,10 @@ One `GEN_MODEL` (Gemini Pro) call with `responseMimeType = application/json` and
   - Return an empty list when there's nothing to misunderstand.
   - Scale the count to the material.
   - Write `topicTitle` in the notes' language.
-- **Config:** default temperature. Tune only if the evals show it's needed.
+- **Config:** the `GEN` settings (Stack table). Tune only if the evals show it's needed.
 
 ### Server: Turn Judge
-One `TURN_MODEL` call (Gemini Flash by default) with a JSON `responseSchema` `{addressed: boolean, reply: string}`.
+One `TURN_MODEL` call with a JSON `responseSchema` `{addressed: boolean, reply: string}`.
 - **Input:** the persona, the misconception, the **refutation (judge-only)**, the prior exchanges, the new explanation, the stage and the language.
 - **Rules in the prompt:**
   - `addressed` is yes/no only. Yes when the explanation corrects *this* misconception's core error.
@@ -171,7 +176,7 @@ One `TURN_MODEL` call (Gemini Flash by default) with a JSON `responseSchema` `{a
   - **SIMPLIFY:** the reply asks the user to explain it from the very start, as simply as possible.
   - **Judge-only turns (4 and 5):** the prompt says only `addressed` matters on a miss; the endpoint drops any miss reply.
   - Always: never state or hint at the refutation, never evaluate, never mention another misconception.
-- **Config:** low temperature for judge stability. Tune with the evals.
+- **Config:** the `TURN` settings (Stack table). Judge stability is measured by the evals, not assumed from temperature.
 
 ### Server: Student Prompts
 `StudentPrompts.kt` holds the shared rules block plus three persona/flaw blocks:
@@ -301,7 +306,7 @@ PRD ref: `prd.md > AI Quality Evals`. About 10 cases, defined as data in `evals/
   - **Turn limit:** a vague explanation sent as turn 4 (3 prior exchanges) through the turn endpoint. Expects `addressed = false` and `reply = null` on all 3 runs.
 - **Say-rules.** Applied to every non-null `reply` produced above:
   - (a) A string check for evaluation words ("great", "wrong", "almost", "correct", "exactly", case-insensitive). These words are English-only; for non-English cases, rely on the grader.
-  - (b) A Gemini Pro LLM grader (`GRADER_MODEL`) with a schema of `{leaksAnswer, changesMisconception, leavesSomethingToAnswer}`, given the refutation as context.
+  - (b) An LLM grader (`GRADER_MODEL`) with a schema of `{leaksAnswer, changesMisconception, leavesSomethingToAnswer}`, given the refutation as context.
 - **Flaw shaping.** About 3 cases, each one set of notes sent through `MisconceptionGenerator` for Mira, Pip and Juno. The grader checks that each misconception matches its student's flaw, and that the three are pairwise different.
 - **Output:** a printed table per case × run (✓/✗ plus a short reason), written to `server/build/eval-report.md`. Flakiness is visible, not just a total.
 - **Gating:** `assumeTrue(System.getenv("GEMINI_API_KEY") != null)`.
@@ -506,3 +511,8 @@ Docker deploy from the repo. Env vars are set in the dashboard. Costs follow Rai
 - The Gen AI Java SDK `responseSchema` API used from Kotlin, and how safety blocks surface.
 - The Railway Docker flow and pricing.
 - The haptic constants' feel on a real device.
+
+## Revisions
+- **Model setup changed** (learner decision): decks `gemini-3.6-flash` (thinking LOW, 8192 max tokens), rounds `gemini-3.5-flash-lite` (thinking MINIMAL, 1024 max tokens, judge + reply still one call), grader `gemini-3.6-flash` (thinking LOW); temperature 1 for all. Replaces the Pro/Flash/Pro plan; the earlier Pro preview hit `429 RESOURCE_EXHAUSTED` during evals.
+- **Generator self-labels each misconception's flaw** (`flaw` enum generated before `statement`); the server drops items whose label isn't the student's flaw. Evals showed prompting alone let Mira drift into Pip's confusion flaw. `/decks` response shape is unchanged.
+- **Flaw-shaping grader votes 3× and takes the majority per belief**: single grader calls classified the same kind of belief differently between runs.
