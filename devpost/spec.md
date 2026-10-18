@@ -156,13 +156,14 @@ PRD ref: `prd.md > Teaching a Misconception`, `prd.md > Getting Unstuck`, `prd.m
 
 ### Server: Misconception Generator
 One `GEN_MODEL` call with `responseMimeType = application/json` and a `responseSchema`:
-`{language: string (BCP-47), topicTitle: string, misconceptions: [{statement: string, refutation: string}] (0..8)}`.
+`{language: string (BCP-47), topicTitle: string, nothingToLearn: boolean, misconceptions: [{flaw, statement: string, refutation: string}] (5..8)}`.
 - **System prompt:** the shared student rules plus the chosen student's persona and flaw from `StudentPrompts`.
 - **Instructions:**
   - Form misconceptions only from the notes, shaped by the flaw.
   - Use the first person, in the student's voice, in the notes' language.
-  - Return an empty list when there's nothing to misunderstand.
-  - Scale the count to the material.
+  - Every belief is false as stated and contradicts the notes (never true-but-incomplete).
+  - Write 5 candidates; set `nothingToLearn` when the text has no content (the server then returns an empty list).
+  - The server keeps the first 3 own-flaw items, fills from the others, and calls once more if it still has fewer than 3. Zero after the retry is an AI failure (502).
   - Write `topicTitle` in the notes' language.
 - **Config:** the `GEN` settings (Stack table). Tune only if the evals show it's needed.
 
@@ -516,3 +517,6 @@ Docker deploy from the repo. Env vars are set in the dashboard. Costs follow Rai
 - **Model setup changed** (learner decision): decks `gemini-3.6-flash` (thinking LOW, 8192 max tokens), rounds `gemini-3.5-flash-lite` (thinking MINIMAL, 1024 max tokens, judge + reply still one call), grader `gemini-3.6-flash` (thinking LOW); temperature 1 for all. Replaces the Pro/Flash/Pro plan; the earlier Pro preview hit `429 RESOURCE_EXHAUSTED` during evals.
 - **Generator self-labels each misconception's flaw** (`flaw` enum generated before `statement`); the server drops items whose label isn't the student's flaw. Evals showed prompting alone let Mira drift into Pip's confusion flaw. `/decks` response shape is unchanged.
 - **Flaw-shaping grader votes 3× and takes the majority per belief**: single grader calls classified the same kind of belief differently between runs.
+- **Decks are 3, from 5 candidates** (learner decision, replaces "1–8 decided by the notes"): schema `minItems 5 / maxItems 8`, server keeps 3 (own flaw first), one retry when short, never zero unless `nothingToLearn`. The flaw filter alone could leave 2, and the model sometimes returned only 2.
+- **Every belief must be false as stated** (all students; Mira's omission must make the claim wrong): on `gemini-3.6-flash` Mira wrote true-but-incomplete beliefs ("arteries carry blood away from the heart").
+- **Say-rule grader narrowed:** a pushback leaks only if it states or paraphrases the refutation; asking about the missing part is allowed (learner decision). The student prompt still forbids hinting.

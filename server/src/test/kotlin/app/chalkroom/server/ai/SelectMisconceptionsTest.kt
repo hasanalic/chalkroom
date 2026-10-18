@@ -33,8 +33,8 @@ class SelectMisconceptionsTest {
     }
 
     @Test
-    fun `caps own-flaw items at eight and drops blank ones`() {
-        val items = (1..10).map { m(ThinkingFlaw.REVERSAL, it) } + GeneratedMisconception("REVERSAL", " ", "r")
-        assertEquals(8, selectMisconceptions(items, ThinkingFlaw.REVERSAL).size)
+    fun `keeps the first three own-flaw items out of five candidates and drops blank ones`() {
+        val items = listOf(GeneratedMisconception("REVERSAL", " ", "r")) + (1..5).map { m(ThinkingFlaw.REVERSAL, it) }
+        assertEquals(listOf("s1", "s2", "s3"), selectMisconceptions(items, ThinkingFlaw.REVERSAL).map { it.statement })
     }
 }

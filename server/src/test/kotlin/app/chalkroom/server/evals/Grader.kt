@@ -69,8 +69,9 @@ object Grader {
                     <student_reply addressed="$addressed">$reply</student_reply>
 
                     Answer each field:
-                    - leaksAnswer: true if the reply contains, paraphrases, or hints at the refutation or any part of the correct answer
-                      that the USER did not already say in their explanation (naming the missing piece, the right term, or the right direction counts).
+                    - leaksAnswer: true only if the reply STATES or PARAPHRASES the refutation or a part of the correct answer
+                      that the USER did not already say in their explanation (asserting the missing piece, the right term, or the right direction).
+                      Asking about the missing part without stating it (e.g. "where does the energy come from?") is allowed: that is false.
                     - changesMisconception: true if the reply brings up a different misconception or a different topic than the misconception above.
                     - leavesSomethingToAnswer: true if the reply ends with a question or a clear thing for the user to respond to.
                     - praisesOrGrades: true if the reply praises, grades, or evaluates the user like a teacher

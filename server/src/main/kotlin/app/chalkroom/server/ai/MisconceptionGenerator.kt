@@ -20,26 +20,46 @@ val StudentId.flaw: ThinkingFlaw
 @Serializable
 data class GeneratedMisconception(val flaw: String = "", val statement: String, val refutation: String)
 
+/** [nothingToLearn] comes first so the model decides it before writing candidates; when true the candidates are discarded. */
 @Serializable
 data class GeneratedDeck(
     val language: String,
     val topicTitle: String,
+    val nothingToLearn: Boolean = false,
     val misconceptions: List<GeneratedMisconception>,
 )
 
 /** Reads the notes as one student and returns what that student gets wrong, shaped by its flaw. */
 class MisconceptionGenerator(private val gemini: GeminiClient, private val settings: ModelSettings) {
 
+    /**
+     * Asks for [CANDIDATES] beliefs and keeps [DECK_SIZE]. If fewer than [DECK_SIZE] are usable, calls once more
+     * and selects from both calls' candidates. Returns fewer only if the retry also comes up short, never zero
+     * unless the notes have nothing to learn.
+     */
     suspend fun generate(notes: String, studentId: StudentId): GeneratedDeck {
-        val deck = gemini.generateJson(
-            settings = settings,
-            systemPrompt = StudentPrompts.system(studentId),
-            userPrompt = userPrompt(notes, studentId.flaw),
-            schema = SCHEMA,
-            serializer = GeneratedDeck.serializer(),
-        )
-        return deck.copy(misconceptions = selectMisconceptions(deck.misconceptions, studentId.flaw))
+        val first = call(notes, studentId)
+        if (first.nothingToLearn) return first.copy(misconceptions = emptyList())
+        var pool = first.misconceptions
+        var chosen = selectMisconceptions(pool, studentId.flaw)
+        if (chosen.size < DECK_SIZE) {
+            val retry = runCatching { call(notes, studentId) }.getOrNull()
+            if (retry != null && !retry.nothingToLearn) {
+                pool = (pool + retry.misconceptions).distinctBy { it.statement.trim().lowercase() }
+                chosen = selectMisconceptions(pool, studentId.flaw)
+            }
+        }
+        if (chosen.isEmpty()) throw AiUnavailable("no_misconceptions")
+        return first.copy(misconceptions = chosen)
     }
+
+    private suspend fun call(notes: String, studentId: StudentId) = gemini.generateJson(
+        settings = settings,
+        systemPrompt = StudentPrompts.system(studentId),
+        userPrompt = userPrompt(notes, studentId.flaw),
+        schema = SCHEMA,
+        serializer = GeneratedDeck.serializer(),
+    )
 
     private fun userPrompt(notes: String, flaw: ThinkingFlaw) = """
         Read the user's notes below as yourself, and decide what you learned wrong.
@@ -51,9 +71,10 @@ class MisconceptionGenerator(private val gemini: GeminiClient, private val setti
           your flaw, skip it rather than misreading it another way.
         - Each one is a single specific, believable wrong belief, said in the first person in your voice
           (for example "I think a plant gets its food from the soil."). Never say it is a misconception.
-        - Scale the count to the material: about one per distinct idea, between 1 and $MAX_MISCONCEPTIONS.
-          Short notes with three ideas give about three.
-        - If the text has nothing to learn (no factual or conceptual content), return an empty list.
+        - Every belief must be FALSE as stated and contradict the notes: a reader of the notes must be able to point at what
+          it gets wrong. A true statement that merely leaves details out is not a misconception; never write one.
+        - Write $CANDIDATES candidates, each about a different idea where possible, best first.
+        - "nothingToLearn": true only if the text has no factual or conceptual content to learn at all (then the candidates are ignored).
         - For each, first set "flaw" to the one flaw the belief is an instance of: OMISSION (leaves out a key step or condition),
           CONFUSION (swaps two similar things), or REVERSAL (reverses a stated cause and effect). Label honestly:
           only beliefs labeled ${flaw.name} are kept, so if a belief is really another flaw, label it that way.
@@ -69,18 +90,18 @@ class MisconceptionGenerator(private val gemini: GeminiClient, private val setti
     """.trimIndent()
 
     companion object {
-        const val MAX_MISCONCEPTIONS = 8
-        const val MIN_MISCONCEPTIONS = 3
+        const val DECK_SIZE = 3
+        const val CANDIDATES = 5
+        private const val MAX_CANDIDATES = 8
 
         /**
-         * Keeps items labeled with the student's own flaw. If that leaves fewer than [MIN_MISCONCEPTIONS],
-         * tops up with the other generated items (best-effort flaw shaping beats a thin deck or a false
-         * "nothing to misunderstand"). Original order is kept. Can't exceed what the model returned.
+         * Keeps the first [DECK_SIZE] items labeled with the student's own flaw, then fills from the other
+         * items (best-effort flaw shaping beats a thin deck). Original order is kept.
          */
         fun selectMisconceptions(items: List<GeneratedMisconception>, flaw: ThinkingFlaw): List<GeneratedMisconception> {
             val usable = items.filter { it.statement.isNotBlank() && it.refutation.isNotBlank() }
             val (own, other) = usable.partition { it.flaw.equals(flaw.name, ignoreCase = true) }
-            val chosen = own.take(MAX_MISCONCEPTIONS) + other.take((MIN_MISCONCEPTIONS - own.size).coerceAtLeast(0))
+            val chosen = (own + other).take(DECK_SIZE)
             return usable.filter { it in chosen }
         }
 
@@ -90,10 +111,11 @@ class MisconceptionGenerator(private val gemini: GeminiClient, private val setti
                 mapOf(
                     "language" to Schema.builder().type(Type.Known.STRING).build(),
                     "topicTitle" to Schema.builder().type(Type.Known.STRING).build(),
+                    "nothingToLearn" to Schema.builder().type(Type.Known.BOOLEAN).build(),
                     "misconceptions" to Schema.builder()
                         .type(Type.Known.ARRAY)
-                        .minItems(0L)
-                        .maxItems(MAX_MISCONCEPTIONS.toLong())
+                        .minItems(CANDIDATES.toLong())
+                        .maxItems(MAX_CANDIDATES.toLong())
                         .items(
                             Schema.builder()
                                 .type(Type.Known.OBJECT)
@@ -112,8 +134,8 @@ class MisconceptionGenerator(private val gemini: GeminiClient, private val setti
                         .build(),
                 ),
             )
-            .required("language", "topicTitle", "misconceptions")
-            .propertyOrdering("language", "topicTitle", "misconceptions")
+            .required("language", "topicTitle", "nothingToLearn", "misconceptions")
+            .propertyOrdering("language", "topicTitle", "nothingToLearn", "misconceptions")
             .build()
     }
 }

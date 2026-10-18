@@ -22,6 +22,8 @@ class FlawShapingEval {
 
     private companion object {
         const val MIN_PASS_PERCENT = 80
+        /** Learner target for Mira after the false-belief rule: ≥ 7/8. */
+        const val MIN_MIRA_PERCENT = 87.5
     }
 
     private val expected = mapOf(
@@ -40,6 +42,8 @@ class FlawShapingEval {
         var beliefCount = 0
         var beliefPass = 0
         var distinctOk = true
+        val deckSizes = mutableListOf<String>()
+        val perStudent = StudentId.entries.associateWith { intArrayOf(0, 0) }
 
         val report = buildString {
             appendLine("| Notes | Student | Belief | Blind flaw | Pass | Reason |")
@@ -62,6 +66,11 @@ class FlawShapingEval {
                         appendLine("| ${case.id} | $student | — | — | ✗ | error: ${it.message?.oneLine(80)} |")
                         return@forEach
                     }
+                    deckSizes += "${case.id}/$student=${beliefs.size}"
+                    if (beliefs.size != MisconceptionGenerator.DECK_SIZE) {
+                        failures += "${case.id}/$student: deck of ${beliefs.size}"
+                        misses += "**${case.id} / $student** — deck of ${beliefs.size}, expected ${MisconceptionGenerator.DECK_SIZE}"
+                    }
                     if (beliefs.isEmpty()) {
                         failures += "${case.id}/$student: no misconceptions"
                         misses += "**${case.id} / $student** — empty deck"
@@ -72,6 +81,8 @@ class FlawShapingEval {
                         val ok = g != null && g.flaw == expected.getValue(student) && g.fromNotes &&
                             (student != StudentId.PIP || g.namesSwappedInThing)
                         beliefCount++
+                        perStudent.getValue(student)[1]++
+                        if (ok) perStudent.getValue(student)[0]++
                         if (ok) beliefPass++ else {
                             failures += "${case.id}/$student#$i: ${g?.flaw} ${g?.reason}"
                             misses += "**${case.id} / $student** — expected ${expected.getValue(student)}, blind grader said ${g?.flaw ?: "nothing"}. " +
@@ -101,13 +112,19 @@ class FlawShapingEval {
             append(distinct)
         }
         val rateOk = beliefCount > 0 && beliefPass * 100 >= beliefCount * MIN_PASS_PERCENT
+        val (miraPass, miraCount) = perStudent.getValue(StudentId.MIRA).let { it[0] to it[1] }
+        val miraOk = miraCount > 0 && miraPass * 100.0 >= miraCount * MIN_MIRA_PERCENT
+        val sizesOk = deckSizes.size == cases.size * StudentId.entries.size &&
+            deckSizes.all { it.endsWith("=${MisconceptionGenerator.DECK_SIZE}") }
         val summary = """
-            Threshold: ≥ $MIN_PASS_PERCENT% of beliefs classified as their student's flaw (majority of ${Grader.VOTES} blind grader votes); no wrong claim shared across students.
+            Thresholds: ≥ $MIN_PASS_PERCENT% of beliefs classified as their student's flaw (majority of ${Grader.VOTES} blind grader votes); Mira ≥ 7/8 ($MIN_MIRA_PERCENT%); every deck has ${MisconceptionGenerator.DECK_SIZE} beliefs; no wrong claim shared across students.
 
             - Beliefs: $beliefPass/$beliefCount = ${EvalReport.pct(beliefPass, beliefCount)} ${EvalReport.mark(rateOk)}
+            - Per student: ${perStudent.entries.joinToString(", ") { (s, c) -> "${s.name} ${c[0]}/${c[1]}" }}; Mira ${EvalReport.mark(miraOk)}
+            - Deck sizes: ${deckSizes.joinToString(", ")} ${EvalReport.mark(sizesOk)}
             - Distinct across students: ${EvalReport.mark(distinctOk)}
         """.trimIndent()
         EvalReport.section("3. Flaw shaping", summary + "\n\n" + report + EvalReport.knownLimitations(misses))
-        assertTrue(rateOk && distinctOk, "Flaw shaping below threshold (${EvalReport.pct(beliefPass, beliefCount)}, distinct=$distinctOk):\n" + failures.joinToString("\n"))
+        assertTrue(rateOk && miraOk && sizesOk && distinctOk, "Flaw shaping below threshold (${EvalReport.pct(beliefPass, beliefCount)}, distinct=$distinctOk):\n" + failures.joinToString("\n"))
     }
 }

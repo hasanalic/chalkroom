@@ -23,7 +23,7 @@ A university student the night before an exam, with their own lecture notes on o
    - If the explanation addresses the misconception, its face clears, it has a small "aha" and writes in its notebook.
    - If not, it stays puzzled and pushes back with a follow-up in its own voice. Try again. There's no counter, penalty or score.
    - Each misconception allows at most 5 explanations. If the 4th still misses, the student says it's stuck, and you choose: see the answer, or one last try. When turns run out, the app (never the student) shows the answer, and the mote clears without counting as something you explained.
-5. Repeat for each misconception (1–8, depending on the notes), one at a time.
+5. Repeat for each misconception (3 per lesson), one at a time.
 6. When all are cleared, the closing shows: the student's relief and "What stuck" (your own sentences, only for misconceptions your explanations cleared). Then back to class. You can leave at any time; the lesson pauses, and nothing counts as failed.
 
 ## Inspiration & Identity
@@ -51,7 +51,7 @@ All lines come from the AI live, nothing scripted. **"Oh, that's cool" beats:**
 - Characters are drawn in code (shapes), not image assets.
 - Four expression states: idle, thinking, puzzled, got it. Code-driven motion (breathing, blinking, transitions, the mote clearing sequence). No frame-by-frame animation. Details in `prd.md`.
 - Source text comes in by paste. Explanations are typed.
-- 1–8 AI-generated misconceptions per text (about 3 in the demo), handled one at a time.
+- 3 AI-generated misconceptions per lesson (fewer only if the AI can't produce 3), handled one at a time.
 - AI judges whether each explanation addresses the current misconception and generates the pushback. The student speaks the language of the notes; the UI stays English.
 - A small eval set (~10 cases) for misconception generation (including per-flaw differences) and the "addressed?" judgment.
 - Android only.

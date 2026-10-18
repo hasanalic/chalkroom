@@ -90,7 +90,8 @@ Source: `scope.md > The Unique Kernel`.
 - [ ] Each student's self-introduction is a fixed line describing their own flaw in their own voice.
 
 ### Reading and Misconception Creation
-- 1–8 misconceptions, decided by the notes (more material, more misconceptions). Demo notes are short enough to give about 3.
+- 3 misconceptions per lesson. Fewer (never zero) only if the AI can't produce 3, and the spoken count says the real number ("2 things don't click yet").
+- Every misconception is false as stated and contradicts the notes. A true-but-incomplete statement is never a misconception.
 - Every misconception comes from the pasted notes and follows the chosen student's flaw.
 - **Language:** the student speaks the language of the notes (misconceptions and replies). The interface stays English.
 - [ ] Notes in another language (e.g., Turkish) produce misconceptions and replies in that language, while UI labels stay English.
@@ -183,7 +184,7 @@ Source: `scope.md > The POC Boundary`, `scope.md > Why This Matters to the Learn
 - **Errors erase nothing.** A failed round never happened. Your text returns to the input.
 - **At most 5 explanations per misconception, then the answer.** After a missed 4th try you choose the answer or one last try. The answer comes from the app's card, never from the student, and a revealed misconception never counts as something you explained. Seeing the answer is never a failure.
 - **One lesson per student, paused on exit.** Leaving never discards.
-- **1–8 misconceptions decided by the notes**, not a fixed 3.
+- **3 misconceptions per lesson**, fewer only if the AI can't produce 3; the count always says the real number.
 - **Session-only memory.** Nothing persists after the app closes.
 
 ## What We're Building
