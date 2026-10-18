@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mira's bean silhouette on the board green. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#E2B04A"
+        android:strokeColor="#2A2420"
+        android:strokeWidth="3"
+        android:pathData="M38,80 C34,62 40,40 56,34 C70,30 78,44 76,60 C75,70 72,76 70,80 Z" />
+    <path
+        android:fillColor="#E2B04A"
+        android:strokeColor="#2A2420"
+        android:strokeWidth="3"
+        android:pathData="M56,34 C55,28 59,25 63,27 C60,28 59,31 60,34 Z" />
+    <path android:fillColor="#2A2420" android:pathData="M51,50 a2.5,4 0 1,1 0.01,0 Z" />
+    <path android:fillColor="#2A2420" android:pathData="M63,50 a2.5,4 0 1,1 0.01,0 Z" />
+    <path
+        android:strokeColor="#2A2420"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M53,63 Q57,66 61,63" />
+</vector>

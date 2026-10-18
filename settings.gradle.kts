@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "chalkroom"
-include(":shared", ":server")
+include(":shared", ":server", ":app")

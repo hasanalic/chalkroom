@@ -39,7 +39,7 @@ Build mode: fast
   Learner check: Open `server/build/eval-report.md` and check whether the borderline cases and reasons match your own judgment.
   Commit: `Add Gemini evals with per-run report`
 
-- [ ] **4. The classroom opens and Mira reads your notes on the emulator**
+- [x] **4. The classroom opens and Mira reads your notes on the emulator**
   Becomes usable: On the emulator: classroom with Mira, Pip and Juno drawn in code (breathing, blinking) → Teach something → paste notes (150–8,000 limits) → choose student with fixed intros → Reading screen calls the local server, motes appear one by one, count spoken, student looks up. Empty deck and failure states work; Back cancels.
   Why now: First visible app; bootstraps `:app` (Compose, Koin, Navigation, Ktor client, theme) and the one `StudentFigure` every later screen reuses.
   PRD ref: `prd.md > The Core Journey` (steps 1–4), `prd.md > Screens and Layout > Classroom / Paste Notes / Choose Who You Teach / Reading`, `prd.md > Look and Feel`, `prd.md > States and Boundaries`
@@ -119,3 +119,4 @@ Activity mode:
 - Slice 3 committed against the learner's thresholds (judge 3/3 all cases; say-rules ≥ 90% with the no-refutation-leak rule at 100%; flaw shaping ≥ 80% majority vote) instead of all-must-pass. The no-leak rule failed (17/18) on the single allowed run; recorded as a known limitation in `server/eval-report.md`, not tuned per learner instruction.
 - `/decks` tops up to 3 with non-matching items when the flaw filter leaves fewer (`selectMisconceptions`, unit-tested). It can't add items the model never returned: a smoke call on `gemini-3.6-flash` returned only 2.
 - Decks fixed at 3 from 5 candidates with one retry; every belief must be false as stated; say-rule leak check narrowed to stating/paraphrasing (re-scored: 18/18). Flaw shaping re-run once: 9/9 decks of 3, true-but-incomplete beliefs gone, overall 85.2%, but Mira 7/9 (target 7/8) and one Mira/Pip overlap on supply_demand. Recorded in `server/eval-report.md`, not tuned.
+- Slice 4 build setup: AGP 9.4.1 needs Gradle ≥ 9.6, so the wrapper moved to 9.8.1; the current AndroidX/Compose releases need compileSdk 37 (targetSdk 37). The UI font is the system sans for now (Nunito was only a suggestion; stand-in for slice 7). Reading lands on a minimal Lesson view (student, counter, misconception 1) that slice 5 turns into the teaching screen.
