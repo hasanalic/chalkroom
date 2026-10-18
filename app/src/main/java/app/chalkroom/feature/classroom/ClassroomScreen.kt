@@ -2,11 +2,14 @@ package app.chalkroom.feature.classroom
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseInOutSine
+import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -30,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +45,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -58,10 +64,13 @@ import app.chalkroom.students.settle
 import app.chalkroom.ui.components.PrimaryButton
 import app.chalkroom.ui.theme.Chalkroom
 import app.chalkroom.ui.theme.ChalkroomTheme
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.random.Random
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
-import kotlin.random.Random
 
 @Composable
 fun ClassroomScreen(
@@ -131,6 +140,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
 
         Board(
             board = state.board,
+            reduced = reduced,
             onTap = { onEvent(UiEvent.BoardTapped) },
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -143,6 +153,8 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
                 },
         )
 
+        // With nothing left to clear anywhere, resting faces settle a little.
+        val roomClear = state.seats.all { it.motes.isEmpty() && !it.paused }
         // Back row first, front desk last, so the front sits over the back.
         listOf(StudentId.MIRA, StudentId.JUNO, StudentId.PIP).forEach { id ->
             val seat = state.seats.first { it.studentId == id }
@@ -151,6 +163,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
             val enter = desksIn.getValue(id).value
             Seat(
                 seat = seat.copy(motes = if (motesShown) seat.motes else emptyList()),
+                resting = roomClear,
                 life = life.forStudent(id),
                 doodleStrokes = if (id == StudentId.MIRA) life.doodles else 0,
                 onTap = { onEvent(UiEvent.StudentTapped(id)) },
@@ -176,21 +189,40 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
     }
 }
 
-/** The board on the wall; tappable (gives a little under a finger) when a lesson is paused. */
+/**
+ * The board on the wall. A tap puffs a little chalk dust where the finger lands; when a lesson is
+ * paused the board also gives a little and opens it.
+ */
 @Composable
-private fun Board(board: ClassroomContract.Board?, onTap: () -> Unit, modifier: Modifier = Modifier) {
+private fun Board(board: ClassroomContract.Board?, reduced: Boolean, onTap: () -> Unit, modifier: Modifier = Modifier) {
     val colors = Chalkroom.colors
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val give by animateFloatAsState(if (pressed && board != null) 0.97f else 1f, settle(), label = "give")
     val trayH = 14.dp
+    var downAt by remember { mutableStateOf(Offset.Zero) }
+    var puffAt by remember { mutableStateOf(Offset.Zero) }
+    val puff = remember { Animatable(1f) }
+    val scope = rememberCoroutineScope()
     Box(
         modifier
             .graphicsLayer {
                 scaleX = give
                 scaleY = give
             }
-            .clickable(interaction, indication = null, enabled = board != null, role = Role.Button, onClick = onTap),
+            .pointerInput(Unit) {
+                awaitEachGesture { downAt = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial).position }
+            }
+            .clickable(interaction, indication = null, role = Role.Button) {
+                if (!reduced) {
+                    puffAt = downAt
+                    scope.launch {
+                        puff.snapTo(0f)
+                        puff.animateTo(1f, tween(900, easing = EaseOutCubic))
+                    }
+                }
+                if (board != null) onTap()
+            },
     ) {
         Canvas(Modifier.matchParentSize()) {
             val dp = density
@@ -254,11 +286,23 @@ private fun Board(board: ClassroomContract.Board?, onTap: () -> Unit, modifier: 
                 }
             }
         }
+        // Chalk dust: a few soft specks spreading out and drifting up as they fade.
+        if (puff.value < 1f) {
+            Canvas(Modifier.matchParentSize()) {
+                val t = puff.value
+                repeat(9) { i ->
+                    val a = (i * 40f + 15f) * PI.toFloat() / 180f
+                    val reach = (22f + 10f * (i % 3)) * density * t
+                    val at = puffAt + Offset(cos(a) * reach, sin(a) * reach * 0.7f - 18f * density * t)
+                    drawCircle(colors.card.copy(alpha = 0.6f * (1f - t)), (3f + 6f * t + 1.5f * (i % 2)) * density, at)
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun Seat(seat: ClassroomContract.Seat, life: RoomLife?, doodleStrokes: Int, onTap: () -> Unit, modifier: Modifier = Modifier) {
+private fun Seat(seat: ClassroomContract.Seat, resting: Boolean, life: RoomLife?, doodleStrokes: Int, onTap: () -> Unit, modifier: Modifier = Modifier) {
     val kind = life?.kind
     val propMotion by animateFloatAsState(
         if (kind == LifeKind.MIRA_DOODLE || kind == LifeKind.PIP_FIDGET || kind == LifeKind.JUNO_PLANT) 1f else 0f,
@@ -267,7 +311,7 @@ private fun Seat(seat: ClassroomContract.Seat, life: RoomLife?, doodleStrokes: I
     )
     StudentAtDesk(
         studentId = seat.studentId,
-        expression = Expression.IDLE,
+        expression = if (resting) Expression.RESTING else Expression.IDLE,
         motes = seat.motes,
         notebookOpen = seat.paused,
         lookAt = kind?.lookAt,

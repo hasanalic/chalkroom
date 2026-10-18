@@ -181,7 +181,7 @@ fun Desk(studentId: StudentId, notebookOpen: Boolean, propMotion: Float, doodleS
             StudentId.PIP -> drawAskewNotebook(colors, profile.color, profile.shade, Offset(0.2f * w, 0.17f * h), w, propMotion)
             StudentId.JUNO -> drawPlant(colors, Offset(0.2f * w, 0.18f * h), w, propMotion)
         }
-        if (notebookOpen) drawOpenNotebook(colors, Offset(0.58f * w, 0.17f * h), w)
+        if (notebookOpen) drawOpenNotebook(colors, profile.color, Offset(0.58f * w, 0.17f * h), w)
     }
 }
 
@@ -215,10 +215,20 @@ private fun DrawScope.drawAskewNotebook(c: ChalkroomColors, color: Color, shade:
     }
 }
 
-private fun DrawScope.drawOpenNotebook(c: ChalkroomColors, center: Offset, w: Float) {
+private fun DrawScope.drawOpenNotebook(c: ChalkroomColors, color: Color, center: Offset, w: Float) {
     rotate(-4f, center) {
         val pw = 0.14f * w
         val ph = 0.09f * w
+        // A bookmark in the student's colour, hanging out past the bottom by the spine.
+        val ribbon = Path().apply {
+            val x = center.x + pw * 0.12f
+            moveTo(x, center.y - ph / 2)
+            lineTo(x + 0.022f * w, center.y - ph / 2)
+            lineTo(x + 0.022f * w, center.y + ph / 2 + 0.035f * w)
+            lineTo(x + 0.011f * w, center.y + ph / 2 + 0.024f * w)
+            lineTo(x, center.y + ph / 2 + 0.035f * w)
+            close()
+        }
         listOf(-1, 1).forEach { side ->
             val tl = Offset(center.x + if (side == -1) -pw else 0f, center.y - ph / 2)
             drawRect(c.card, tl, Size(pw, ph))
@@ -228,6 +238,8 @@ private fun DrawScope.drawOpenNotebook(c: ChalkroomColors, center: Offset, w: Fl
                 drawLine(c.ink.copy(alpha = 0.35f), Offset(tl.x + pw * 0.15f, y), Offset(tl.x + pw * 0.85f, y), 0.006f * w)
             }
         }
+        drawPath(ribbon, color)
+        drawPath(ribbon, c.ink, style = Stroke(0.008f * w, join = StrokeJoin.Round))
     }
 }
 
