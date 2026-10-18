@@ -128,7 +128,7 @@ fun StudentFigure(
     val lid by tweenFace(t.lid, "lid")
     val tilt by tweenFace(t.tilt, "tilt")
     val stretch by tweenFace(t.stretch, "stretch")
-    val soft by tweenFace(t.soft, "soft")
+    val smile by tweenFace(t.smile, "smile")
     val scanWeight by tweenFace(if (look == Look.READING && !reduced) 1f else 0f, "scanWeight")
 
     // Each mote condenses in when it first appears, and slides along the arc when another leaves.
@@ -208,14 +208,13 @@ fun StudentFigure(
                 // A hint of lid would only flatten the eye's top, so lids start showing past 0.06.
                 val lids = ((lid + re.lid - 0.06f) / 0.94f).coerceIn(0f, 0.85f)
                 val lidY = top + eyeH * lids
-                // Lid lines never slope down toward the middle of the face (that reads as a frown). They
-                // are drawn level on screen, undoing the head tilt and the eye slant, and a soft lid
-                // only sags toward the outer corner.
-                val droop = soft * eyeH * 0.14f
+                // Upper lids come down only for doubt and blinks. Their edge never slopes down toward
+                // the middle of the face (that reads as a frown): it is drawn level on screen, undoing
+                // the head tilt and the eye slant.
                 val half = ew * 0.8f
                 val lidEdge = Path().apply {
-                    moveTo(center.x - half, lidY - side * droop)
-                    quadraticTo(center.x, lidY - droop * 0.6f, center.x + half, lidY + side * droop)
+                    moveTo(center.x - half, lidY)
+                    lineTo(center.x + half, lidY)
                 }
                 val below = Path().apply {
                     addPath(lidEdge)
@@ -223,8 +222,24 @@ fun StudentFigure(
                     lineTo(center.x - half, top + eyeH * 2)
                     close()
                 }
+                // A content eye smiles from below: an upward arc cuts the bottom away (◠), unlined.
+                val bottom = top + eyeH
+                // The arc spans just past the eye's width, so it curves even on Pip's and Juno's narrow eyes.
+                val cut = smile * eyeH * 0.6f
+                val span = ew * 0.62f
+                val aboveSmile = Path().apply {
+                    moveTo(center.x - ew, top - eyeH)
+                    lineTo(center.x + ew, top - eyeH)
+                    lineTo(center.x + ew, bottom + eyeH)
+                    lineTo(center.x + span, bottom + eyeH)
+                    lineTo(center.x + span, bottom)
+                    quadraticTo(center.x, bottom - 2f * cut, center.x - span, bottom)
+                    lineTo(center.x - span, bottom + eyeH)
+                    lineTo(center.x - ew, bottom + eyeH)
+                    close()
+                }
                 rotate(-headTurn, center) {
-                    clipPath(below) {
+                    clipPath(below) { clipPath(aboveSmile) {
                         rotate(headTurn - side * face.eyeTilt, center) {
                             if (face.oval) {
                                 drawOval(colors.ink, Offset(center.x - ew / 2, top), Size(ew, eyeH))
@@ -232,7 +247,7 @@ fun StudentFigure(
                                 drawRoundRect(colors.ink, Offset(center.x - ew / 2, top), Size(ew, eyeH), CornerRadius(ew / 2, ew / 2))
                             }
                         }
-                    }
+                    } }
                     if (lids > 0.22f && blink < 0.5f) {
                         drawPath(lidEdge, colors.ink, style = Stroke(0.018f * w, cap = StrokeCap.Round))
                     }

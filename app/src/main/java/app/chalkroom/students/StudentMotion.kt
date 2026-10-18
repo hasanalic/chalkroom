@@ -25,8 +25,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
-/** RELAXED: settled after the last belief clears (closing). RESTING: idle in a room with nothing left to clear. */
-enum class Expression { IDLE, THINKING, PUZZLED, GOT_IT, RELAXED, RESTING }
+/** RELAXED: settled after the last belief clears (closing). */
+enum class Expression { IDLE, THINKING, PUZZLED, GOT_IT, RELAXED }
 
 /** Where the eyes point. [READING] scans side to side, down at the notes. */
 enum class Look { AT_YOU, READING }
@@ -46,17 +46,19 @@ data class FaceTargets(
     val tilt: Float,
     /** Vertical stretch of the body, e.g. +0.03 for a little "aha" lift. */
     val stretch: Float,
-    /** 0 = a level lid edge, 1 = a lid that sags toward the outer corner: soft, content eyes. */
-    val soft: Float = 0f,
+    /**
+     * 0 = none, 1 = the eye's bottom cut away by an upward arc, so it reads as smiling. Content
+     * faces use this, never a lowered upper lid: on a mouthless face a lid reads as a frown.
+     */
+    val smile: Float = 0f,
 )
 
 fun Expression.targets(): FaceTargets = when (this) {
     Expression.IDLE -> FaceTargets(1f, 0f, 0f, 0f, 0f, 0f, 0f)
-    Expression.THINKING -> FaceTargets(0.92f, 0.05f, -0.045f, 0f, 0.12f, 4f, 0f)
-    Expression.PUZZLED -> FaceTargets(1f, 0f, 0f, 0.35f, 0.05f, -6f, 0f)
+    Expression.THINKING -> FaceTargets(0.92f, 0.05f, -0.045f, 0f, 0f, 4f, 0f)
+    Expression.PUZZLED -> FaceTargets(1f, 0f, 0f, 0.35f, 0f, -6f, 0f)
     Expression.GOT_IT -> FaceTargets(1.3f, 0f, -0.01f, 0f, 0f, 0f, 0.03f)
-    Expression.RELAXED -> FaceTargets(1f, 0f, 0.012f, 0f, 0.42f, 3f, -0.015f, soft = 1f)
-    Expression.RESTING -> FaceTargets(1f, 0f, 0.006f, 0f, 0.3f, 0f, 0f, soft = 0.7f)
+    Expression.RELAXED -> FaceTargets(1f, 0f, 0.012f, 0f, 0f, 3f, -0.015f, smile = 1f)
 }
 
 /** Expressions where the eyes wander on their own. */

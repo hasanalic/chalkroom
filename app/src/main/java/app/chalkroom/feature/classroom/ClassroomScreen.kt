@@ -153,8 +153,6 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
                 },
         )
 
-        // With nothing left to clear anywhere, resting faces settle a little.
-        val roomClear = state.seats.all { it.motes.isEmpty() && !it.paused }
         // Back row first, front desk last, so the front sits over the back.
         listOf(StudentId.MIRA, StudentId.JUNO, StudentId.PIP).forEach { id ->
             val seat = state.seats.first { it.studentId == id }
@@ -163,7 +161,6 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
             val enter = desksIn.getValue(id).value
             Seat(
                 seat = seat.copy(motes = if (motesShown) seat.motes else emptyList()),
-                resting = roomClear,
                 life = life.forStudent(id),
                 doodleStrokes = if (id == StudentId.MIRA) life.doodles else 0,
                 onTap = { onEvent(UiEvent.StudentTapped(id)) },
@@ -302,7 +299,7 @@ private fun Board(board: ClassroomContract.Board?, reduced: Boolean, onTap: () -
 }
 
 @Composable
-private fun Seat(seat: ClassroomContract.Seat, resting: Boolean, life: RoomLife?, doodleStrokes: Int, onTap: () -> Unit, modifier: Modifier = Modifier) {
+private fun Seat(seat: ClassroomContract.Seat, life: RoomLife?, doodleStrokes: Int, onTap: () -> Unit, modifier: Modifier = Modifier) {
     val kind = life?.kind
     val propMotion by animateFloatAsState(
         if (kind == LifeKind.MIRA_DOODLE || kind == LifeKind.PIP_FIDGET || kind == LifeKind.JUNO_PLANT) 1f else 0f,
@@ -311,7 +308,7 @@ private fun Seat(seat: ClassroomContract.Seat, resting: Boolean, life: RoomLife?
     )
     StudentAtDesk(
         studentId = seat.studentId,
-        expression = if (resting) Expression.RESTING else Expression.IDLE,
+        expression = Expression.IDLE,
         motes = seat.motes,
         notebookOpen = seat.paused,
         lookAt = kind?.lookAt,
