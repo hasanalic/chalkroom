@@ -69,7 +69,7 @@ Build mode: fast
   Learner check: Get a student stuck on purpose, try both buttons, then leave mid-lesson and come back from the board.
   Commit: `Add stuck flow, answer card, pause and resume`
 
-- [ ] **7. Design pass**
+- [x] **7. Design pass**
   Becomes usable: The whole app wears the brief's look: cream/slate/gold palette, Nunito + Lora, the "ledge" on every button and card; mouthless students that breathe, blink and glance on their own clocks with arc-arranged motes; the lesson as a student card + dark notched line card + "You" card + pinned gold input; the classroom as one room (wall, board, shelf, clock, bin, wooden floor, angled desks with props and chairs); closing, paste, choose, reading and error states restyled. Not droppable.
   Why now: All must-have behavior works end to end; the look and feel gets its own pass before the optional upgrades and the deploy.
   PRD ref: `prd.md > Screens and Layout`; `devpost/design-brief.md`
@@ -78,12 +78,15 @@ Build mode: fast
   Verify (mechanical): `./gradlew :app:assembleDebug` + unit tests pass after each sub-slice; before/after emulator screenshots of each screen saved; core journey still completes; system "remove animations" stops idle loops.
   Learner check: Review the lesson before/after screenshots after sub-slice (b); at the end, walk the full core journey on the emulator and compare each screen with the brief.
   Commit: one per sub-slice, e.g. `Design pass: tokens and students`, `Design pass: lesson screen`, …
-  Polish items (learner review of the lesson sub-slice, fix later, not now):
-  - [ ] Unconvinced face reads as angry; make it doubtful (flat half-down lids, slight lean back).
-  - [ ] Scroll-down button overlaps the input field on the lesson screen.
-  - [ ] Student ~15–20% larger on the lesson stage.
+  Polish items (learner review of the lesson sub-slice, then the learner's polish list):
+  - [x] Unconvinced face reads as angry; make it doubtful (flat half-down lids, slight lean back).
+  - [ ] Scroll-down button overlaps the input field on the lesson screen. Not reproduced: no such control in the app, none shown with the on-screen keyboard or a long multi-line input. Carried to slice 8 pending the learner's repro.
+  - [x] Students ~25% larger on the lesson stage (was ~15–20%; the learner raised it).
+  - [x] Closing faces relieved with soft eyes, all three students.
+  - [x] App icon (tier 3): the three students peeking over a desk edge on gold, adaptive vector.
 
 - [ ] **8. Stand-in upgrades: whatever slice 7 left of reading words, ambient life, eyes-lead, history sheet and props**
+  Carried from slice 7: the lesson's scroll-down button over the input, once the learner shows where it appears.
   Becomes usable: Any of these not already delivered by the design pass (the brief covers eyes-lead, room life, desk props, reading words and the exchanges pill): words drift from notes into the head during Reading; one small ambient action per student every 12–20s; eyes lead and head follows; "N exchanges" sheet; desk props (doodle, askew notebook, plant).
   Why now: PRD orders these after the must-haves; each is optional if time runs short.
   PRD ref: `prd.md > What We're Building` (stand-ins 1–4)
@@ -141,3 +144,4 @@ Activity mode:
 - Slice 7 filled from `devpost/design-brief.md` (learner's brief): tiered sub-slices with before/after screenshots, a learner review stop after the lesson sub-slice. The brief also covers eyes-lead, room life, desk props, reading words and the exchanges pill, so slice 8 shrinks to whatever slice 7 leaves.
 - Slice 7 sub-slices (a)–(e) built and committed (tokens/students, lesson, classroom, closing, paste/choose/reading/errors), each checked on the emulator with before/after screenshots. Choices made without a brief detail: the wall's "warmer near the floor" is two flat bands (the brief bans gradients); the only gradient is the floor fading into the page under the button, which the brief asks for. Reading's mote stagger now speeds up (800 ms × 0.65 each), per the brief. Tier 3 not started; slice 7 stays open for the learner's polish items and journey check.
 - Students redrawn from the learner's references (`devpost/references/students/`): Mira is a lime cat, Pip a pink lightning bolt, Juno a cream face under an orange hat and coat. They're busts cropped by the desk or the frame bottom, with one thick ink outline. Student colours and shades changed with them (§1 of the brief predates this). The closing screen gained a tinted frame so its bust crops like the lesson stage. Each student's mote arc now sits so it clears the ears, the bolt's points and the hat brim. Behaviour and timings are unchanged. Screenshots are in `devpost/screenshots/students-v2/`.
+- Slice 7 polish: lesson stage 272dp with the student at 225dp (+25%). On a miss the student now looks doubtful: level half-down lids drawn flat even on Pip's slanted eyes, a slight lean back, the eyes glance aside, and the puzzled eye-size difference is dropped. The relieved closing face uses soft lids that dip in the middle. Lids under 0.06 no longer flatten the eye tops. Pip's eye slant was mirrored and is now fixed to match the reference. The app icon is a gold adaptive icon. Its foreground vector is generated by `tools/gen_launcher_icon.py` from the shapes in StudentShapes.kt. The reaction timings, the 550ms unconvinced beat and the 900ms clearing are unchanged. Remaining tier 3 extras (chalk-dust puff, notebook bookmark, relaxed room faces) are not done. Screenshots are in `devpost/screenshots/polish/`.
