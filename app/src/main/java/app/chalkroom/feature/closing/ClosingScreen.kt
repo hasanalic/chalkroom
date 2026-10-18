@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import app.chalkroom.data.ClearedItem
 import app.chalkroom.feature.closing.ClosingContract.Beat
 import app.chalkroom.feature.closing.ClosingContract.UiEffect
@@ -88,52 +89,76 @@ fun ClosingScreen(
 fun ClosingContent(state: UiState, onEvent: (UiEvent) -> Unit) {
     val colors = Chalkroom.colors
     val profile = StudentCatalog[state.studentId]
+    val scroll = rememberScrollState()
+    // Bring the notebook into view before it closes, so the moment isn't missed below the fold.
+    val showNotebook = state.reached(if (state.whatStuck.isEmpty()) Beat.RELIEF else Beat.WHAT_STUCK)
+    LaunchedEffect(showNotebook) {
+        if (showNotebook) {
+            delay(NOTEBOOK_SCROLL_DELAY_MS)
+            scroll.animateScrollTo(scroll.maxValue, tween(600, easing = FastOutSlowInEasing))
+        }
+    }
+    val optionsShown = state.reached(Beat.OPTIONS)
+    val optionsAlpha by animateFloatAsState(if (optionsShown) 1f else 0f, tween(300), label = "options")
     Column(
         Modifier
             .fillMaxSize()
             .background(colors.paper)
-            .safeDrawingPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .safeDrawingPadding(),
     ) {
-        Text("Nothing left in ${profile.name}'s head", style = Chalkroom.type.title, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(12.dp))
-        StudentFigure(state.studentId, state.expression, Modifier.width(150.dp))
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(scroll)
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Nothing left in ${profile.name}'s head", style = Chalkroom.type.title, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(12.dp))
+            StudentFigure(state.studentId, state.expression, Modifier.width(150.dp))
 
-        AnimatedVisibility(state.reached(Beat.RELIEF), enter = fadeIn(tween(320))) {
-            LineCard(profile.reliefLine, Modifier.fillMaxWidth().padding(top = 16.dp))
-        }
+            AnimatedVisibility(state.reached(Beat.RELIEF), enter = fadeIn(tween(320))) {
+                LineCard(profile.reliefLine, Modifier.fillMaxWidth().padding(top = 16.dp))
+            }
 
-        if (state.whatStuck.isNotEmpty()) {
-            AnimatedVisibility(state.reached(Beat.WHAT_STUCK), enter = fadeIn(tween(320))) {
-                Column(Modifier.fillMaxWidth().padding(top = 24.dp)) {
-                    Text("What stuck", style = Chalkroom.type.label)
-                    Spacer(Modifier.height(8.dp))
-                    state.whatStuck.forEachIndexed { i, item ->
-                        WhatStuckRow(item, open = state.openIndex == i) { onEvent(UiEvent.ToggleItem(i)) }
+            if (state.whatStuck.isNotEmpty()) {
+                AnimatedVisibility(state.reached(Beat.WHAT_STUCK), enter = fadeIn(tween(320))) {
+                    Column(Modifier.fillMaxWidth().padding(top = 24.dp)) {
+                        Text("What stuck", style = Chalkroom.type.label)
                         Spacer(Modifier.height(8.dp))
+                        state.whatStuck.forEachIndexed { i, item ->
+                            WhatStuckRow(item, open = state.openIndex == i) { onEvent(UiEvent.ToggleItem(i)) }
+                            Spacer(Modifier.height(8.dp))
+                        }
                     }
                 }
             }
-        }
 
-        Spacer(Modifier.height(24.dp))
-        AnimatedVisibility(state.reached(Beat.RELIEF), enter = fadeIn(tween(320))) {
-            Notebook(state.topicTitle, closed = state.reached(Beat.NOTEBOOK_CLOSED))
-        }
-
-        Spacer(Modifier.height(24.dp))
-        AnimatedVisibility(state.reached(Beat.OPTIONS), enter = fadeIn(tween(300))) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                PrimaryButton("Teach ${profile.name} something else", { onEvent(UiEvent.TeachSomethingElse) })
-                QuietButton("Back to class", { onEvent(UiEvent.BackToClass) })
+            Spacer(Modifier.height(24.dp))
+            AnimatedVisibility(state.reached(Beat.RELIEF), enter = fadeIn(tween(320))) {
+                Notebook(state.topicTitle, closed = state.reached(Beat.NOTEBOOK_CLOSED))
             }
+        }
+
+        // Pinned below the scrolling part so both options are visible without scrolling; space is
+        // reserved from the start so nothing jumps when they fade in.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .graphicsLayer { alpha = optionsAlpha },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            PrimaryButton("Teach ${profile.name} something else", { if (optionsShown) onEvent(UiEvent.TeachSomethingElse) }, enabled = optionsShown)
+            QuietButton("Back to class", { if (optionsShown) onEvent(UiEvent.BackToClass) })
         }
     }
 }
 
-/** One of your own sentences. Tap to see the misconception it cleared. */
+private const val NOTEBOOK_SCROLL_DELAY_MS = 450L
+
 @Composable
 private fun WhatStuckRow(item: ClearedItem, open: Boolean, onClick: () -> Unit) {
     val colors = Chalkroom.colors
