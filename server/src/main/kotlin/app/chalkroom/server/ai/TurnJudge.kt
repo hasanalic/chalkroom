@@ -88,13 +88,16 @@ class TurnJudge(private val gemini: GeminiClient, private val model: String) {
               in a way consistent with the refutation. The user does not need to match the refutation's wording.
             - No if it is vague, only restates your belief, says "you're wrong" without why, is half-right but leaves the core error standing,
               uses the right words with wrong reasoning, or corrects a different point than this misconception.
-            - The refutation is secret context for judging. Never quote it, paraphrase it, or hint at it.
+            - The refutation is secret context for judging only.
 
             Writing "reply":
-            - If addressed: a short "aha" acknowledgment that picks up the user's own words from the new explanation
-              (quote or reuse a short phrase of theirs), then what it changes in your understanding. No praise, no evaluation.
+            - If addressed: one or two short sentences, in your own voice, as a student having an "aha".
+              Reuse a short phrase of the user's own words from the new explanation, and say what it changes for you.
+              Never praise or grade the user like a teacher ("great job", "correct", "exactly", "well done").
             - If not addressed: say what still confuses you, from a new angle (not repeating earlier replies),
-              and end with a question the user can answer. Never reveal or hint at the answer.
+              and end with a question the user can answer.
+              A pushback must NEVER contain, paraphrase, or hint at the refutation or any part of the correct answer:
+              do not name the missing piece, the right term, or the right direction. Only describe your own confusion.
             - Never mention any other misconception or topic.
         """.trimIndent()
 

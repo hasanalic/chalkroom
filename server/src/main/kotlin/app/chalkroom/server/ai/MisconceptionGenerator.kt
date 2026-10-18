@@ -39,7 +39,10 @@ class MisconceptionGenerator(private val gemini: GeminiClient, private val model
         Read the user's notes below as yourself, and decide what you learned wrong.
 
         Instructions:
-        - Every misconception must come only from these notes, and must follow your thinking flaw.
+        - Every misconception must come only from these notes, and every single one must be an instance of YOUR thinking flaw
+          and of no other flaw. Someone who knows only the three flaws (omission, confusing similar things, reversed cause and effect)
+          must be able to tell from the belief alone that it is yours. If an idea in the notes cannot be misread through
+          your flaw, skip it rather than misreading it another way.
         - Each one is a single specific, believable wrong belief, said in the first person in your voice
           (for example "I think a plant gets its food from the soil."). Never say it is a misconception.
         - Scale the count to the material: about one per distinct idea, between 1 and $MAX_MISCONCEPTIONS.
