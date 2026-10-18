@@ -25,13 +25,11 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
@@ -60,6 +58,8 @@ private const val LAST_MOTE_SCALE = 1.25f
  * inside. [activeMoteId] gets a full ring and the others a faded one (lesson); with no active mote
  * every ring is full. [motesStill] freezes the motes' drift (a clearing is under way). Each bump of
  * [reactTick] plays the student's own unconvinced reaction (a miss): never red, never a shake.
+ * [lookAt] points the eyes somewhere (fractions of the width; the head follows late) and each bump
+ * of [hopTick] is a small bounce: the classroom's ambient life uses both.
  */
 @Composable
 fun StudentFigure(
@@ -71,6 +71,8 @@ fun StudentFigure(
     activeMoteId: String? = null,
     motesStill: Boolean = false,
     reactTick: Int = 0,
+    lookAt: Offset? = null,
+    hopTick: Int = 0,
 ) {
     val profile = StudentCatalog[studentId]
     val colors = Chalkroom.colors
@@ -94,6 +96,17 @@ fun StudentFigure(
         react.animateTo(1f, tween(inMs, easing = Dart))
         react.animateTo(0f, tween(outMs, easing = EaseInOutSine))
     }
+
+    val hop = remember { Animatable(0f) }
+    LaunchedEffect(hopTick) {
+        if (hopTick == 0) return@LaunchedEffect
+        hop.animateTo(1f, tween(150, easing = Dart))
+        hop.animateTo(0f, settle())
+    }
+    val lookW by animateFloatAsState(if (lookAt != null) 1f else 0f, tween(260, easing = Dart), label = "lookW")
+    val lookX by animateFloatAsState(lookAt?.x ?: 0f, tween(260, easing = Dart), label = "lookX")
+    val lookY by animateFloatAsState(lookAt?.y ?: 0f, tween(260, easing = Dart), label = "lookY")
+    val lookHead by animateFloatAsState(lookAt?.x ?: 0f, tween(560, delayMillis = 130, easing = EaseInOutSine), label = "lookHead")
 
     val t = expression.targets()
     val readingDy = if (look == Look.READING) 0.045f else 0f
@@ -153,10 +166,10 @@ fun StudentFigure(
 
         // Body: breathing fills it (taller, a touch narrower), the head tilts and follows the eyes late.
         val sx = 1f - 0.006f * breath - 0.01f * nod.value
-        val sy = 1f + 0.02f * breath + stretch - 0.03f * nod.value + re.stretch
-        val headTurn = tilt + re.tilt + glance.headX.value * (1f - a) * 55f
+        val sy = 1f + 0.02f * breath + stretch - 0.03f * nod.value + re.stretch + 0.025f * hop.value
+        val headTurn = tilt + re.tilt + (glance.headX.value * (1f - lookW) + lookHead) * (1f - a) * 55f
         clipRect(bottom = h) { withTransform({
-            translate(top = (nod.value * 0.02f + re.lift) * w)
+            translate(top = (nod.value * 0.02f + re.lift - 0.05f * hop.value) * w)
             rotate(headTurn, Offset(w / 2, h))
             scale(sx, sy, Offset(w / 2, h))
         }) {
@@ -177,8 +190,8 @@ fun StudentFigure(
 
             // Eyes: capsules, with lids that come down from the top. Looking up at you wins over a glance.
             val fc = Offset(face.center.x * w, face.center.y * h)
-            val gx = glance.eyeX.value * (1f - a)
-            val gy = glance.eyeY.value * (1f - a) - 0.02f * a
+            val gx = (glance.eyeX.value * (1f - lookW) + lookX * lookW) * (1f - a)
+            val gy = (glance.eyeY.value * (1f - lookW) + lookY * lookW) * (1f - a) - 0.02f * a
             val dx = (eyeDx * (1f - a) + scan * scanWeight + gx + re.eyeDx) * w
             val dy = (eyeDy * (1f - a) + gy + re.eyeDy) * w
             val ew = 0.062f * w * eyeScale
@@ -282,9 +295,3 @@ private fun StudentFigurePreview() {
     }
 }
 
-/** Modifier for a small nod: [progress] 0 → 1 → 0 tips the figure forward from its base. */
-fun Modifier.nod(progress: Float): Modifier = graphicsLayer {
-    transformOrigin = TransformOrigin(0.5f, 1f)
-    translationY = progress * 6f * density
-    scaleY = 1f - progress * 0.03f
-}

@@ -78,6 +78,10 @@ Build mode: fast
   Verify (mechanical): `./gradlew :app:assembleDebug` + unit tests pass after each sub-slice; before/after emulator screenshots of each screen saved; core journey still completes; system "remove animations" stops idle loops.
   Learner check: Review the lesson before/after screenshots after sub-slice (b); at the end, walk the full core journey on the emulator and compare each screen with the brief.
   Commit: one per sub-slice, e.g. `Design pass: tokens and students`, `Design pass: lesson screen`, …
+  Polish items (learner review of the lesson sub-slice, fix later, not now):
+  - [ ] Unconvinced face reads as angry; make it doubtful (flat half-down lids, slight lean back).
+  - [ ] Scroll-down button overlaps the input field on the lesson screen.
+  - [ ] Student ~15–20% larger on the lesson stage.
 
 - [ ] **8. Stand-in upgrades: whatever slice 7 left of reading words, ambient life, eyes-lead, history sheet and props**
   Becomes usable: Any of these not already delivered by the design pass (the brief covers eyes-lead, room life, desk props, reading words and the exchanges pill): words drift from notes into the head during Reading; one small ambient action per student every 12–20s; eyes lead and head follows; "N exchanges" sheet; desk props (doodle, askew notebook, plant).

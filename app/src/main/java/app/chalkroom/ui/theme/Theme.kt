@@ -38,9 +38,17 @@ data class ChalkroomColors(
     val line: Color = Color(0xFFE7E2D3),
     val disabled: Color = Color(0xFFEDEAE0),
     // Room (classroom) colors.
-    val wood: Color = Color(0xFFE2A85A),
-    val woodDark: Color = Color(0xFFB57A35),
+    val wall: Color = Color(0xFFFFF5E2),
+    val wallLow: Color = Color(0xFFFCEBD0),
+    val skirting: Color = Color(0xFFEBD3AE),
+    val floor1: Color = Color(0xFFEDBE7A),
+    val floor2: Color = Color(0xFFE6B26B),
+    val floor3: Color = Color(0xFFF1C88A),
+    val wood: Color = Color(0xFFEDB65A),
+    val woodDark: Color = Color(0xFFD39740),
+    val woodDeep: Color = Color(0xFFB9792C),
     val board: Color = Color(0xFF3E5149),
+    val chair: Color = Color(0xFF5B6680),
     val junoFace: Color = Color(0xFFFFF8EA),
 ) {
     // Older names kept so not-yet-restyled screens follow the new palette.
