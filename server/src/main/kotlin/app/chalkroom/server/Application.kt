@@ -3,6 +3,7 @@ package app.chalkroom.server
 import app.chalkroom.server.ai.AiUnavailable
 import app.chalkroom.server.ai.GeminiClient
 import app.chalkroom.server.ai.MisconceptionGenerator
+import app.chalkroom.server.ai.TurnJudge
 import app.chalkroom.shared.ErrorBody
 import app.chalkroom.shared.ErrorCodes
 import io.ktor.http.HttpStatusCode
@@ -35,6 +36,7 @@ fun main() {
 fun Application.module(config: Config) {
     val gemini = GeminiClient(config.geminiApiKey)
     val generator = MisconceptionGenerator(gemini, config.genModel)
+    val judge = TurnJudge(gemini, config.turnModel)
 
     install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; explicitNulls = true }) }
     install(CallLogging)
@@ -55,8 +57,12 @@ fun Application.module(config: Config) {
             rateLimiter(limit = 20, refillPeriod = 1.hours)
             requestKey { it.clientIp() }
         }
+        register(TurnsLimit) {
+            rateLimiter(limit = 150, refillPeriod = 1.hours)
+            requestKey { it.clientIp() }
+        }
     }
-    configureRoutes(generator)
+    configureRoutes(generator, judge)
 }
 
 /** Railway sits behind a proxy, so prefer the first X-Forwarded-For hop. */

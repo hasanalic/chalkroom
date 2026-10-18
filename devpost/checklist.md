@@ -19,7 +19,7 @@ Build mode: fast
   Learner check: Start the server with your key, curl `/decks` with your own notes for two students, and read whether the misconceptions feel believable and flaw-shaped.
   Commit: `Add shared DTOs and /decks misconception generator`
 
-- [ ] **2. An explanation gets judged yes/no with an in-character reply**
+- [x] **2. An explanation gets judged yes/no with an in-character reply**
   Becomes usable: `curl POST /lessons/turn` returns `{addressed, reply}`; vague explanations get pushback, precise ones an acknowledgment that echoes your words; turn 4+ misses return `reply: null`; a 6th turn is 409.
   Why now: Second half of the kernel. Must exist before evals can test it.
   PRD ref: `prd.md > Teaching a Misconception`, `prd.md > What the Student May and May Not Say`, `prd.md > Getting Unstuck`

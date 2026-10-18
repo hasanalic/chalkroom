@@ -10,3 +10,7 @@ build/
 *.jks
 *.keystore
 .DS_Store
+.agents/
+.claude/
+agent/
+skills-lock.json
