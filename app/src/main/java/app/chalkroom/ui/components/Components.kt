@@ -1,11 +1,16 @@
 package app.chalkroom.ui.components
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -14,60 +19,177 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.chalkroom.ui.theme.Chalkroom
+import app.chalkroom.ui.theme.Radii
 
-private val Pill = RoundedCornerShape(50)
+val ButtonShape = RoundedCornerShape(Radii.button)
+val CardShape = RoundedCornerShape(Radii.card)
 
-/** Ink-filled pill. The only primary action style in the app. */
+const val BUTTON_LEDGE_DP = 4
+const val CARD_LEDGE_DP = 3
+
+/**
+ * The app's one depth device: [content]'s surface sits on a flat extrusion of [ledgeColor], same
+ * [shape], [depth] below it. When [pressed], the surface moves down onto its ledge.
+ */
 @Composable
-fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun Ledge(
+    shape: Shape,
+    color: Color,
+    ledgeColor: Color,
+    modifier: Modifier = Modifier,
+    depth: Dp = CARD_LEDGE_DP.dp,
+    pressed: Boolean = false,
+    border: Color? = null,
+    borderWidth: Dp = 2.dp,
+    contentModifier: Modifier = Modifier,
+    contentAlignment: Alignment = Alignment.TopStart,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val press by animateDpAsState(
+        if (pressed) depth else 0.dp,
+        spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessHigh),
+        label = "press",
+    )
+    // propagateMinConstraints: a fillMaxWidth on [modifier] stretches the surface too.
+    Box(modifier.padding(bottom = depth), propagateMinConstraints = true) {
+        Box(Modifier.matchParentSize().offset(y = depth).clip(shape).background(ledgeColor))
+        Box(
+            Modifier
+                .offset(y = press)
+                .clip(shape)
+                .background(color)
+                .then(if (border != null) Modifier.border(borderWidth, border, shape) else Modifier)
+                .then(contentModifier),
+            contentAlignment = contentAlignment,
+            content = content,
+        )
+    }
+}
+
+/** Shared body of every ledge button. */
+@Composable
+private fun LedgeButton(
+    text: String,
+    onClick: () -> Unit,
+    color: Color,
+    ledgeColor: Color,
+    textColor: Color,
+    modifier: Modifier,
+    enabled: Boolean,
+    border: Color? = null,
+) {
+    val colors = Chalkroom.colors
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    Box(
-        modifier = modifier
-            .scale(if (pressed) 0.97f else 1f)
-            .alpha(if (enabled) 1f else 0.35f)
-            .clip(Pill)
-            .background(Chalkroom.colors.ink)
+    Ledge(
+        shape = ButtonShape,
+        color = if (enabled) color else colors.disabled,
+        ledgeColor = if (enabled) ledgeColor else colors.line,
+        depth = BUTTON_LEDGE_DP.dp,
+        pressed = pressed && enabled,
+        border = if (enabled) border else null,
+        modifier = modifier,
+        contentModifier = Modifier
             .clickable(interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 28.dp, vertical = 14.dp),
+            .padding(horizontal = 26.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, style = Chalkroom.type.label.copy(color = Chalkroom.colors.paper))
+        Text(
+            text,
+            style = Chalkroom.type.button.copy(color = if (enabled) textColor else colors.muted),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.align(Alignment.Center),
+        )
     }
 }
 
-/** Outlined pill for secondary choices. */
+/** Gold, on a deeper gold ledge. The primary action everywhere. */
 @Composable
-fun QuietButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .clip(Pill)
-            .border(2.dp, Chalkroom.colors.ink, Pill)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text, style = Chalkroom.type.label)
-    }
+fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val c = Chalkroom.colors
+    LedgeButton(text, onClick, c.gold, c.goldLedge, c.ink, modifier, enabled)
 }
 
-/** The single card that holds what a student is saying right now. Never a chat bubble list. */
+/** Coral, for a second, warmer choice. */
 @Composable
-fun LineCard(text: String, modifier: Modifier = Modifier) {
+fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val c = Chalkroom.colors
+    LedgeButton(text, onClick, c.coral, c.coralLedge, c.ink, modifier, enabled)
+}
+
+/** White with an ink outline, on an ink ledge. */
+@Composable
+fun QuietButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val c = Chalkroom.colors
+    LedgeButton(text, onClick, c.card, c.ink, c.ink, modifier, enabled, border = c.ink)
+}
+
+/** A light card on a lavender ledge. */
+@Composable
+fun LightCard(
+    modifier: Modifier = Modifier,
+    ledgeColor: Color = Chalkroom.colors.lavender2,
+    border: Color? = null,
+    contentModifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    Ledge(
+        shape = CardShape,
+        color = Chalkroom.colors.card,
+        ledgeColor = ledgeColor,
+        modifier = modifier,
+        border = border,
+        borderWidth = 1.5.dp,
+        contentModifier = contentModifier.padding(horizontal = 18.dp, vertical = 14.dp),
+        content = content,
+    )
+}
+
+private val NOTCH_W = 22.dp
+private val NOTCH_H = 11.dp
+
+/**
+ * The single card that holds what a student is saying right now: dark, with a notch on top
+ * pointing up at the student, on a lavender ledge. Never a chat bubble list.
+ */
+@Composable
+fun LineCard(text: String, modifier: Modifier = Modifier, content: (@Composable BoxScope.() -> Unit)? = null) {
+    val colors = Chalkroom.colors
     Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(22.dp))
-            .background(Chalkroom.colors.paper)
-            .border(2.5.dp, Chalkroom.colors.ink, RoundedCornerShape(22.dp))
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+        modifier
+            .padding(top = NOTCH_H)
+            .drawBehind {
+                val w = NOTCH_W.toPx()
+                val h = NOTCH_H.toPx()
+                val cx = size.width / 2
+                drawPath(
+                    Path().apply {
+                        moveTo(cx - w / 2, 1f)
+                        lineTo(cx, -h)
+                        lineTo(cx + w / 2, 1f)
+                        close()
+                    },
+                    colors.ink,
+                )
+            },
     ) {
-        Text(text, style = Chalkroom.type.studentLine, textAlign = TextAlign.Start)
+        Ledge(
+            shape = CardShape,
+            color = colors.ink,
+            ledgeColor = colors.lavender2,
+            contentModifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+        ) {
+            if (content != null) content() else Text(text, style = Chalkroom.type.studentLine)
+        }
     }
 }

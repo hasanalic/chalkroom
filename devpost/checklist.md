@@ -70,17 +70,17 @@ Build mode: fast
   Commit: `Add stuck flow, answer card, pause and resume`
 
 - [ ] **7. Design pass**
-  Becomes usable: To be set from the learner's design brief (pending). Not droppable.
+  Becomes usable: The whole app wears the brief's look: cream/slate/gold palette, Nunito + Lora, the "ledge" on every button and card; mouthless students that breathe, blink and glance on their own clocks with arc-arranged motes; the lesson as a student card + dark notched line card + "You" card + pinned gold input; the classroom as one room (wall, board, shelf, clock, bin, wooden floor, angled desks with props and chairs); closing, paste, choose, reading and error states restyled. Not droppable.
   Why now: All must-have behavior works end to end; the look and feel gets its own pass before the optional upgrades and the deploy.
-  PRD ref: `prd.md > Screens and Layout` (to be refined from the brief)
-  Spec ref: `spec.md > Look and Feel` (to be refined from the brief)
-  Build: Pending the learner's design brief.
-  Verify (mechanical): `./gradlew :app:assembleDebug` + unit tests pass; emulator screenshots of every screen; core journey still completes.
-  Learner check: Walk the full core journey on the emulator and compare each screen with the brief.
-  Commit: `Apply design pass`
+  PRD ref: `prd.md > Screens and Layout`; `devpost/design-brief.md`
+  Spec ref: `spec.md > Look and Feel`, `spec.md > App: Student Figure (character component)`; `devpost/design-brief.md`
+  Build: Tier order from the brief (tier 1, then 2, tier 3 only if time is left), in sub-slices, each checked on the emulator with before/after screenshots in `devpost/screenshots/` and committed: (a) design tokens + students (§0, §1); (b) lesson (§2) — then pause for the learner to review screenshots; (c) classroom (§3); (d) closing (§4); (e) paste, choose, reading, errors (§5); (f) tier 3 extras if time is left (§6). Lesson logic and the 900ms clearing timings stay untouched.
+  Verify (mechanical): `./gradlew :app:assembleDebug` + unit tests pass after each sub-slice; before/after emulator screenshots of each screen saved; core journey still completes; system "remove animations" stops idle loops.
+  Learner check: Review the lesson before/after screenshots after sub-slice (b); at the end, walk the full core journey on the emulator and compare each screen with the brief.
+  Commit: one per sub-slice, e.g. `Design pass: tokens and students`, `Design pass: lesson screen`, …
 
-- [ ] **8. Stand-in upgrades: reading words, ambient life, eyes-lead, history sheet and props**
-  Becomes usable: Words drift from notes into the head during Reading; one small ambient action per student every 12–20s; eyes lead and head follows; "N exchanges" sheet; desk props (doodle, askew notebook, plant).
+- [ ] **8. Stand-in upgrades: whatever slice 7 left of reading words, ambient life, eyes-lead, history sheet and props**
+  Becomes usable: Any of these not already delivered by the design pass (the brief covers eyes-lead, room life, desk props, reading words and the exchanges pill): words drift from notes into the head during Reading; one small ambient action per student every 12–20s; eyes lead and head follows; "N exchanges" sheet; desk props (doodle, askew notebook, plant).
   Why now: PRD orders these after the must-haves; each is optional if time runs short.
   PRD ref: `prd.md > What We're Building` (stand-ins 1–4)
   Spec ref: `spec.md > App: Student Figure (character component)`, `spec.md > App: Screens`
@@ -134,3 +134,4 @@ Activity mode:
 - After the slice 5 hands-on check (learner feedback): acknowledgments after a clear never ask a question (turn prompt + say-rule string check, no "?" in a hit reply); a deck's beliefs must each be about a different fact (deck prompt); closing options pinned at the bottom with What stuck scrolling above, and the closing scrolls the notebook into view before it closes. Smoke-checked with one `/decks` and one `/lessons/turn` call; no full eval run, per learner instruction.
 - Slice 6: `lastPausedStudentId` is now derived from a `pauseOrder` list, so when the board's lesson is resumed the board falls back to the next most recently paused one instead of going blank while other lessons are still paused. The lesson pauses when its screen is left (ViewModel cleared) and resumes when it opens; a lesson left during its last clearing opens straight into the closing. Verified on emulator: Back mid-lesson → board + open notebook + motes; resume from board, desk tap and Choose → Continue restores the same line and count, including the stuck buttons and the answer card; Mira and Pip paused at once; closing returns the desk to idle and the board falls back to Mira.
 - Checklist reordered by the learner: new slice 7 "Design pass" (not droppable, built from a design brief the learner will send); stand-in upgrades move to slice 8 (references to "slice 7" above for stand-ins now mean slice 8); deploy becomes slice 9.
+- Slice 7 filled from `devpost/design-brief.md` (learner's brief): tiered sub-slices with before/after screenshots, a learner review stop after the lesson sub-slice. The brief also covers eyes-lead, room life, desk props, reading words and the exchanges pill, so slice 8 shrinks to whatever slice 7 leaves.

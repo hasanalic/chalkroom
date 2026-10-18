@@ -27,7 +27,7 @@ object StudentShapes {
         StudentId.JUNO -> FaceLayout(Offset(0.50f, 0.50f), eyeGap = 0.12f, eyeTilt = 0f, moteCenterY = 0.15f)
     }
 
-    /** The silhouette, cut off flat at the bottom (the desk hides it). */
+    /** The silhouette. It runs past the bottom edge so a tilt never lifts a corner; the figure clips it flat. */
     fun body(id: StudentId, size: Size): Path {
         val w = size.width
         val h = size.height
@@ -37,24 +37,30 @@ object StudentShapes {
             when (id) {
                 StudentId.MIRA -> {
                     // Soft bean leaning right.
-                    moveTo(0.18f * w, h)
+                    moveTo(0.18f * w, h * 1.15f)
+                    lineTo(0.18f * w, h)
                     c(0.10f, 0.76f, 0.20f, 0.36f, 0.50f, 0.30f)
                     c(0.76f, 0.25f, 0.92f, 0.46f, 0.86f, 0.70f)
                     c(0.83f, 0.82f, 0.81f, 0.92f, 0.83f, 1f)
+                    lineTo(0.83f * w, h * 1.15f)
                 }
                 StudentId.PIP -> {
                     // Wide, low, lopsided: the left shoulder sits higher.
-                    moveTo(0.05f * w, h)
+                    moveTo(0.05f * w, h * 1.15f)
+                    lineTo(0.05f * w, h)
                     c(0.01f, 0.72f, 0.08f, 0.45f, 0.30f, 0.43f)
                     c(0.56f, 0.40f, 0.86f, 0.47f, 0.93f, 0.63f)
                     c(0.98f, 0.76f, 0.96f, 0.90f, 0.95f, 1f)
+                    lineTo(0.95f * w, h * 1.15f)
                 }
                 StudentId.JUNO -> {
                     // Tall pear.
-                    moveTo(0.12f * w, h)
+                    moveTo(0.12f * w, h * 1.15f)
+                    lineTo(0.12f * w, h)
                     c(0.08f, 0.78f, 0.30f, 0.66f, 0.31f, 0.42f)
                     c(0.32f, 0.21f, 0.68f, 0.21f, 0.69f, 0.42f)
                     c(0.70f, 0.66f, 0.92f, 0.78f, 0.88f, 1f)
+                    lineTo(0.88f * w, h * 1.15f)
                 }
             }
             close()

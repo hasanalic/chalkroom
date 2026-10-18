@@ -1,81 +1,141 @@
 package app.chalkroom.ui.theme
 
+import android.provider.Settings
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.chalkroom.R
 
-/** Palette from spec.md > Look and Feel. No red, orange-red or warning colors anywhere in teaching. */
+/** Palette from design-brief.md §0. No red, no warning colors anywhere. */
 @Immutable
 data class ChalkroomColors(
-    val paper: Color = Color(0xFFF4EBD9),
-    val paperDeep: Color = Color(0xFFE9DCC2),
-    val wood: Color = Color(0xFFB9875A),
-    val woodDark: Color = Color(0xFF8E6440),
-    val board: Color = Color(0xFF3F4A3C),
-    val chalk: Color = Color(0xFFEDE8DA),
-    val ink: Color = Color(0xFF2A2420),
-    val inkSoft: Color = Color(0xFF2A2420).copy(alpha = 0.6f),
-    val mira: Color = Color(0xFFE2B04A),
-    val pip: Color = Color(0xFF4FA3A0),
-    val juno: Color = Color(0xFF9C8CC4),
-    val junoFace: Color = Color(0xFFF7F1E3),
-    val mote: Color = Color(0xFFD8D2C4).copy(alpha = 0.7f),
-)
+    val page: Color = Color(0xFFFFFDF5),
+    val card: Color = Color(0xFFFFFFFF),
+    val ink: Color = Color(0xFF2B364B),
+    val ink2: Color = Color(0xFF3A4560),
+    val gold: Color = Color(0xFFF5C522),
+    val goldLedge: Color = Color(0xFFC68800),
+    val coral: Color = Color(0xFFF59B74),
+    val coralLedge: Color = Color(0xFFC85B35),
+    val lavender: Color = Color(0xFFEAE6F8),
+    val lavender2: Color = Color(0xFFB9B7E8),
+    val muted: Color = Color(0xFF6E7278),
+    val line: Color = Color(0xFFE7E2D3),
+    val disabled: Color = Color(0xFFEDEAE0),
+    // Room (classroom) colors.
+    val wood: Color = Color(0xFFE2A85A),
+    val woodDark: Color = Color(0xFFB57A35),
+    val board: Color = Color(0xFF3E5149),
+    val junoFace: Color = Color(0xFFFFF8EA),
+) {
+    // Older names kept so not-yet-restyled screens follow the new palette.
+    val paper: Color get() = page
+    val paperDeep: Color get() = line
+    val chalk: Color get() = card
+    val inkSoft: Color get() = muted
+}
 
 @Immutable
 data class ChalkroomType(
+    val display: TextStyle,
+    val headline: TextStyle,
     val title: TextStyle,
+    val button: TextStyle,
     val body: TextStyle,
-    val studentLine: TextStyle,
+    val small: TextStyle,
+    /** Bold body-size label. */
     val label: TextStyle,
+    /** The student's line on the dark speech card. */
+    val studentLine: TextStyle,
+    /** The user's own quoted words. */
+    val quote: TextStyle,
+    /** White text on the board. */
     val chalk: TextStyle,
 )
 
-// Agent suggestion: a rounded bookish face (e.g. Nunito). System sans stands in for now.
-private val Family = FontFamily.SansSerif
+@OptIn(ExperimentalTextApi::class)
+private fun nunito(weight: Int) = Font(R.font.nunito, FontWeight(weight), variationSettings = FontVariation.Settings(FontVariation.weight(weight)))
+
+@OptIn(ExperimentalTextApi::class)
+private val Nunito = FontFamily(nunito(400), nunito(700), nunito(800))
+
+@OptIn(ExperimentalTextApi::class)
+private val LoraItalic = FontFamily(
+    Font(R.font.lora_italic, FontWeight.Medium, FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+)
 
 private fun type(colors: ChalkroomColors) = ChalkroomType(
-    title = TextStyle(fontFamily = Family, fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 30.sp, color = colors.ink),
-    body = TextStyle(fontFamily = Family, fontSize = 16.sp, lineHeight = 23.sp, color = colors.ink),
-    studentLine = TextStyle(fontFamily = Family, fontWeight = FontWeight.Medium, fontSize = 19.sp, lineHeight = 27.sp, color = colors.ink),
-    label = TextStyle(fontFamily = Family, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, color = colors.ink),
-    chalk = TextStyle(fontFamily = Family, fontWeight = FontWeight.Medium, fontSize = 17.sp, lineHeight = 22.sp, color = colors.chalk),
+    display = TextStyle(fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 26.sp, lineHeight = 32.sp, color = colors.ink),
+    headline = TextStyle(fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, lineHeight = 28.sp, color = colors.ink),
+    title = TextStyle(fontFamily = Nunito, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp, lineHeight = 25.sp, color = colors.ink),
+    button = TextStyle(fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 17.sp, lineHeight = 22.sp, color = colors.ink),
+    body = TextStyle(fontFamily = Nunito, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 22.sp, color = colors.ink),
+    small = TextStyle(fontFamily = Nunito, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 18.sp, color = colors.muted),
+    label = TextStyle(fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 15.sp, lineHeight = 20.sp, color = colors.ink),
+    studentLine = TextStyle(fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 21.sp, lineHeight = 28.sp, color = colors.card),
+    quote = TextStyle(fontFamily = LoraItalic, fontWeight = FontWeight.Medium, fontStyle = FontStyle.Italic, fontSize = 15.sp, lineHeight = 22.sp, color = colors.ink),
+    chalk = TextStyle(fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 17.sp, lineHeight = 22.sp, color = colors.card),
 )
+
+/** Radii from the brief. */
+object Radii {
+    val button = 20.dp
+    val card = 24.dp
+}
 
 val LocalChalkroomColors = staticCompositionLocalOf { ChalkroomColors() }
 val LocalChalkroomType = staticCompositionLocalOf { type(ChalkroomColors()) }
 
+/** True when the system "remove animations" setting is on: no idle loops, motes still. */
+val LocalReducedMotion = staticCompositionLocalOf { false }
+
 object Chalkroom {
     val colors: ChalkroomColors @Composable get() = LocalChalkroomColors.current
     val type: ChalkroomType @Composable get() = LocalChalkroomType.current
+    val reducedMotion: Boolean @Composable get() = LocalReducedMotion.current
 }
 
 @Composable
 fun ChalkroomTheme(content: @Composable () -> Unit) {
     val colors = ChalkroomColors()
+    val context = LocalContext.current
+    val reduced = remember(context) {
+        runCatching { Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }.getOrDefault(false)
+    }
     // Material is only a base (text fields, ripples); its colors are mapped onto the palette.
     val scheme = lightColorScheme(
         primary = colors.ink,
-        onPrimary = colors.paper,
-        background = colors.paper,
+        onPrimary = colors.page,
+        background = colors.page,
         onBackground = colors.ink,
-        surface = colors.paper,
+        surface = colors.page,
         onSurface = colors.ink,
-        surfaceVariant = colors.paperDeep,
-        onSurfaceVariant = colors.inkSoft,
+        surfaceVariant = colors.lavender,
+        onSurfaceVariant = colors.muted,
         outline = colors.ink,
         error = colors.ink,
-        onError = colors.paper,
+        onError = colors.page,
     )
-    CompositionLocalProvider(LocalChalkroomColors provides colors, LocalChalkroomType provides type(colors)) {
+    CompositionLocalProvider(
+        LocalChalkroomColors provides colors,
+        LocalChalkroomType provides type(colors),
+        LocalReducedMotion provides reduced,
+    ) {
         MaterialTheme(colorScheme = scheme, content = content)
     }
 }

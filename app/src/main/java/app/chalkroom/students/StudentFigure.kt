@@ -2,8 +2,12 @@ package app.chalkroom.students
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
@@ -12,21 +16,23 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -34,6 +40,8 @@ import androidx.compose.ui.unit.dp
 import app.chalkroom.shared.StudentId
 import app.chalkroom.ui.theme.Chalkroom
 import app.chalkroom.ui.theme.ChalkroomTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -42,9 +50,14 @@ import kotlin.math.sin
 @Immutable
 data class Mote(val id: String, val clearProgress: Float = 0f)
 
+private const val MOTE_R = 0.065f // of the figure width
+private const val LAST_MOTE_SCALE = 1.25f
+
 /**
  * THE character: one composable, used unchanged on every screen. Body, face and motes are drawn
- * in one Canvas from code-built Paths; breathing, blinking and expression tweens run inside.
+ * in one Canvas from code-built Paths; breathing, blinking, glances and expression tweens run
+ * inside. [activeMoteId] gets a full ring and the others a faded one (lesson); with no active mote
+ * every ring is full. [motesStill] freezes the motes' drift (a clearing is under way).
  */
 @Composable
 fun StudentFigure(
@@ -53,13 +66,23 @@ fun StudentFigure(
     modifier: Modifier = Modifier,
     motes: List<Mote> = emptyList(),
     look: Look = Look.AT_YOU,
+    activeMoteId: String? = null,
+    motesStill: Boolean = false,
 ) {
     val profile = StudentCatalog[studentId]
     val colors = Chalkroom.colors
-    val breath by rememberBreath(studentId)
-    val blink by rememberBlink(studentId)
+    val reduced = Chalkroom.reducedMotion
+    val breath by rememberBreath(studentId, still = reduced)
+    val blink by rememberBlink(still = reduced)
+    val glance = rememberGlance(active = !reduced && look == Look.AT_YOU && expression.glances)
     val scan by rememberScan()
-    val orbit by rememberOrbit()
+    val drift by rememberDriftClock(still = reduced || motesStill || motes.any { it.clearProgress > 0f })
+
+    // Tapping anywhere on the student: they look up at you with a tiny nod. Taps aren't consumed,
+    // so whatever the student sits in (a desk, a card) still gets its click.
+    val attend = remember { Animatable(0f) }
+    val nod = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
 
     val t = expression.targets()
     val readingDy = if (look == Look.READING) 0.045f else 0f
@@ -67,33 +90,63 @@ fun StudentFigure(
     val eyeDx by tweenFace(t.eyeDx, "eyeDx")
     val eyeDy by tweenFace(t.eyeDy + readingDy, "eyeDy")
     val asym by tweenFace(t.asym, "asym")
-    val mouthCurve by tweenFace(t.mouthCurve, "mouthCurve")
-    val mouthWave by tweenFace(t.mouthWave, "mouthWave")
-    val mouthOpen by tweenFace(t.mouthOpen, "mouthOpen")
-    val scanWeight by tweenFace(if (look == Look.READING) 1f else 0f, "scanWeight")
+    val lid by tweenFace(t.lid, "lid")
+    val tilt by tweenFace(t.tilt, "tilt")
+    val stretch by tweenFace(t.stretch, "stretch")
+    val scanWeight by tweenFace(if (look == Look.READING && !reduced) 1f else 0f, "scanWeight")
 
-    // Each mote condenses in when it first appears.
+    // Each mote condenses in when it first appears, and slides along the arc when another leaves.
+    val live = motes.filter { it.clearProgress < 1f }
+    val slots = moteSlots(live.size)
     val appear = motes.map { mote ->
         key(mote.id) {
-            val a = remember { Animatable(0f) }
+            val a = remember { Animatable(if (reduced) 1f else 0f) }
             LaunchedEffect(Unit) { a.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessLow)) }
             a
         }
     }
+    val angles = motes.map { mote ->
+        key(mote.id) {
+            val target = slots.getOrElse(live.indexOf(mote).coerceAtLeast(0)) { 270f }
+            animateFloatAsState(target, settle(), label = "slot").value
+        }
+    }
+    val lastScale by animateFloatAsState(if (live.size == 1) LAST_MOTE_SCALE else 1f, settle(), label = "last")
 
     Canvas(
         modifier
             .aspectRatio(1f / FIGURE_ASPECT)
-            .semantics { contentDescription = "${profile.name}, ${expression.name.lowercase()}, ${motes.count { it.clearProgress < 1f }} motes" },
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    scope.launch {
+                        launch {
+                            attend.animateTo(1f, tween(220, easing = Dart))
+                            delay(1_100)
+                            attend.animateTo(0f, tween(500))
+                        }
+                        nod.animateTo(1f, tween(170))
+                        nod.animateTo(0f, settle())
+                    }
+                }
+            }
+            .semantics { contentDescription = "${profile.name}, ${expression.name.lowercase()}, ${live.size} motes" },
     ) {
         val w = size.width
+        val h = size.height
         val outline = Stroke(width = 0.028f * w, join = StrokeJoin.Round, cap = StrokeCap.Round)
         val face = StudentShapes.face(studentId)
+        val a = attend.value
 
-        // Body (breathing scales it from the bottom center).
-        val sx = breath
-        val sy = 1f + (breath - 1f) * 1.6f
-        scaleFromBottom(sx, sy) {
+        // Body: breathing fills it (taller, a touch narrower), the head tilts and follows the eyes late.
+        val sx = 1f - 0.006f * breath - 0.01f * nod.value
+        val sy = 1f + 0.02f * breath + stretch - 0.03f * nod.value
+        val headTurn = tilt + glance.headX.value * (1f - a) * 55f
+        clipRect(bottom = h) { withTransform({
+            translate(top = nod.value * 0.02f * w)
+            rotate(headTurn, Offset(w / 2, h))
+            scale(sx, sy, Offset(w / 2, h))
+        }) {
             StudentShapes.tufts(studentId, size).forEach {
                 drawPath(it, profile.color)
                 drawPath(it, colors.ink, style = outline)
@@ -105,14 +158,16 @@ fun StudentFigure(
                 val (c, r) = StudentShapes.junoFace(size)
                 drawCircle(colors.junoFace, r, c)
                 drawCircle(colors.ink, r, c, style = Stroke(0.018f * w))
-                drawPath(StudentShapes.junoStar(size), colors.chalk)
+                drawPath(StudentShapes.junoStar(size), colors.card)
                 drawPath(StudentShapes.junoStar(size), colors.ink, style = Stroke(0.012f * w, join = StrokeJoin.Round))
             }
 
-            // Eyes: capsules. Eyes lead: they move by the look/expression offsets.
-            val fc = Offset(face.center.x * w, face.center.y * size.height)
-            val dx = (eyeDx + scan * scanWeight) * w
-            val dy = eyeDy * w
+            // Eyes: capsules, with lids that come down from the top. Looking up at you wins over a glance.
+            val fc = Offset(face.center.x * w, face.center.y * h)
+            val gx = glance.eyeX.value * (1f - a)
+            val gy = glance.eyeY.value * (1f - a) - 0.02f * a
+            val dx = (eyeDx * (1f - a) + scan * scanWeight + gx) * w
+            val dy = (eyeDy * (1f - a) + gy) * w
             val ew = 0.062f * w * eyeScale
             val eh = 0.105f * w * eyeScale
             val open = 1f - blink * 0.9f
@@ -120,67 +175,66 @@ fun StudentFigure(
                 val shrink = if (side == 1) 1f - asym else 1f
                 val center = Offset(fc.x + side * face.eyeGap * w / 2 + dx, fc.y + dy - (if (side == -1) face.eyeTilt / 400f * w else 0f))
                 rotate(side * face.eyeTilt, center) {
-                    val h = (eh * shrink * open).coerceAtLeast(ew * 0.25f)
-                    drawRoundRect(
-                        color = colors.ink,
-                        topLeft = Offset(center.x - ew / 2, center.y - h / 2),
-                        size = Size(ew, h),
-                        cornerRadius = CornerRadius(ew / 2, ew / 2),
-                    )
+                    val eyeH = (eh * shrink * open).coerceAtLeast(ew * 0.25f)
+                    val top = center.y - eyeH / 2
+                    val lidY = top + eyeH * lid
+                    clipRect(top = lidY) {
+                        drawRoundRect(
+                            color = colors.ink,
+                            topLeft = Offset(center.x - ew / 2, top),
+                            size = Size(ew, eyeH),
+                            cornerRadius = CornerRadius(ew / 2, ew / 2),
+                        )
+                    }
+                    if (lid > 0.08f && blink < 0.5f) {
+                        drawLine(colors.ink, Offset(center.x - ew * 0.75f, lidY), Offset(center.x + ew * 0.75f, lidY), 0.016f * w, StrokeCap.Round)
+                    }
                     if (eyeScale > 1.1f && blink < 0.5f) {
-                        drawCircle(colors.paper, ew * 0.18f * (eyeScale - 1f) * 3f, Offset(center.x - ew * 0.12f, center.y - h * 0.22f))
+                        drawCircle(colors.page, ew * 0.18f * (eyeScale - 1f) * 3f, Offset(center.x - ew * 0.12f, center.y - eyeH * 0.22f))
                     }
                 }
             }
+        } }
 
-            // Mouth: one cubic that can smile, frown or wobble; an "o" fades in for GOT_IT.
-            val mw = 0.12f * w
-            val my = fc.y + 0.11f * w + dy * 0.3f
-            val mx = fc.x + dx * 0.4f
-            val curve = mouthCurve * 0.07f * w
-            val wave = mouthWave * 0.03f * w
-            val mouth = Path().apply {
-                moveTo(mx - mw / 2, my)
-                cubicTo(mx - mw / 6, my + curve * 0.75f - wave, mx + mw / 6, my + curve * 0.75f + wave, mx + mw / 2, my)
-            }
-            drawPath(mouth, colors.ink.copy(alpha = 1f - mouthOpen), style = Stroke(0.022f * w, cap = StrokeCap.Round))
-            if (mouthOpen > 0.01f) {
-                val ow = 0.055f * w * mouthOpen
-                val oh = 0.07f * w * mouthOpen
-                drawOval(colors.ink, Offset(mx - ow / 2, my - oh * 0.2f), Size(ow, oh))
-            }
-        }
-
-        // Motes orbit the head; each is a small fog cluster.
-        val count = motes.size
+        // Motes: cream circles ringed in the student's shade, in an arc around the head.
+        val cx = face.center.x * w
+        val cy = face.center.y * h
+        val ry = cy - face.moteCenterY * h
+        val rx = 0.42f * w
+        val eye = Offset(cx + face.eyeGap * w / 2, cy)
         motes.forEachIndexed { i, mote ->
-            val a = appear[i].value
+            val appearA = appear[i].value
             val gone = mote.clearProgress
-            if (gone >= 1f || a <= 0f) return@forEachIndexed
-            val angle = 2 * PI * (i.toFloat() / count + orbit)
-            val ox = w * (face.center.x + 0.36f * cos(angle).toFloat())
-            val oy = size.height * face.moteCenterY + 0.075f * w * sin(angle).toFloat() + 0.015f * w * sin(angle * 3).toFloat()
-            // Clearing: 0 → 0.5 the fog resolves (tightens, firms up); 0.5 → 1 it drifts into the eye.
+            if (gone >= 1f || appearA <= 0f) return@forEachIndexed
+            val rad = angles[i] * PI.toFloat() / 180f
+            val phase = i * 2.1f + studentId.ordinal
+            val wobX = sin(drift * 0.9f + phase) * 0.012f * w
+            val wobY = cos(drift * 0.7f + phase * 1.3f) * 0.012f * w
+            val rest = Offset(cx + rx * cos(rad) + wobX, cy + ry * sin(rad) + wobY)
+            // Clearing: 0 → 0.5 it fades from its centre outward; 0.5 → 1 the ring drifts into the eye.
             val resolve = (gone / 0.5f).coerceIn(0f, 1f)
-            val drift = ((gone - 0.5f) / 0.5f).coerceIn(0f, 1f)
-            val eye = Offset(face.center.x * w + face.eyeGap * w / 2, face.center.y * size.height)
-            val c = Offset(ox + (eye.x - ox) * drift, oy + (eye.y - oy) * drift)
-            val alpha = (colors.mote.alpha * (1f + 0.4f * resolve)).coerceAtMost(1f) * a * (1f - drift)
-            drawMote(c, 0.07f * w * a * (1f - 0.3f * resolve) * (1f - 0.75f * drift), colors.mote.copy(alpha = alpha))
+            val toEye = ((gone - 0.5f) / 0.5f).coerceIn(0f, 1f)
+            val c = Offset(rest.x + (eye.x - rest.x) * toEye, rest.y + (eye.y - rest.y) * toEye)
+            val r = MOTE_R * w * appearA * (if (live.size == 1) lastScale else 1f) * (1f - 0.7f * toEye)
+            val ringAlpha = (if (activeMoteId == null || mote.id == activeMoteId) 1f else 0.35f) * (1f - toEye)
+            drawMote(c, r, resolve, colors.page.copy(alpha = 1f - toEye), profile.shade.copy(alpha = ringAlpha), 0.014f * w)
         }
     }
 }
 
-private inline fun DrawScope.scaleFromBottom(sx: Float, sy: Float, crossinline block: DrawScope.() -> Unit) =
-    withTransform({ scale(sx, sy, Offset(size.width / 2, size.height)) }) { block() }
+/** Arc angles (degrees; 270 is straight up) for [n] motes, centred over the head. */
+private fun moteSlots(n: Int): List<Float> {
+    if (n <= 1) return listOf(270f)
+    val span = minOf(150f, 55f * (n - 1))
+    return List(n) { 270f - span / 2 + it * span / (n - 1) }
+}
 
-private fun DrawScope.drawMote(center: Offset, r: Float, color: Color) {
-    fun blob(dx: Float, dy: Float, rr: Float) = Path().apply {
-        addOval(androidx.compose.ui.geometry.Rect(Offset(center.x + dx * r, center.y + dy * r), rr * r))
-    }
-    val cloud = listOf(blob(-0.55f, 0.15f, 0.7f), blob(0.5f, 0.2f, 0.72f), blob(0f, -0.2f, 0.9f))
-        .reduce { acc, p -> Path.combine(PathOperation.Union, acc, p) }
-    drawPath(cloud, color)
+/** A cream disc with a ring; [hollow] 0 → 1 empties it from the centre out. */
+private fun DrawScope.drawMote(center: Offset, r: Float, hollow: Float, fill: Color, ring: Color, ringW: Float) {
+    if (r <= 0f) return
+    val inner = r * hollow
+    if (hollow < 1f) drawCircle(fill, (r + inner) / 2, center, style = Stroke(r - inner))
+    drawCircle(ring, r, center, style = Stroke(ringW))
 }
 
 @Preview(widthDp = 420, heightDp = 200)
@@ -189,13 +243,12 @@ private fun StudentFigurePreview() {
     ChalkroomTheme {
         androidx.compose.foundation.layout.Row {
             StudentFigure(StudentId.MIRA, Expression.IDLE, Modifier.width(130.dp), motes = listOf(Mote("a"), Mote("b"), Mote("c")))
-            StudentFigure(StudentId.PIP, Expression.PUZZLED, Modifier.width(130.dp))
+            StudentFigure(StudentId.PIP, Expression.PUZZLED, Modifier.width(130.dp), motes = listOf(Mote("a")))
             StudentFigure(StudentId.JUNO, Expression.GOT_IT, Modifier.width(130.dp))
         }
     }
 }
 
-/** Modifier for a small nod: [progress] 0 → 1 → 0 tips the figure forward from its base. */
 /** The per-student unconvinced pose, [progress] 0 → 1 → 0: Mira tilts, Pip squints lopsided, Juno narrows. Never a shake. */
 fun Modifier.unconvinced(studentId: StudentId, progress: Float): Modifier = graphicsLayer {
     transformOrigin = TransformOrigin(0.5f, 1f)
@@ -206,6 +259,7 @@ fun Modifier.unconvinced(studentId: StudentId, progress: Float): Modifier = grap
     }
 }
 
+/** Modifier for a small nod: [progress] 0 → 1 → 0 tips the figure forward from its base. */
 fun Modifier.nod(progress: Float): Modifier = graphicsLayer {
     transformOrigin = TransformOrigin(0.5f, 1f)
     translationY = progress * 6f * density

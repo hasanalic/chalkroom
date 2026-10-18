@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -94,13 +95,13 @@ private fun DrawScope.drawDoodle(c: ChalkroomColors, at: Offset, w: Float) {
             moveTo(at.x + 0.03f * w, at.y + 0.08f * w)
             cubicTo(at.x + 0.06f * w, at.y + 0.01f * w, at.x + 0.09f * w, at.y + 0.12f * w, at.x + 0.15f * w, at.y + 0.04f * w)
         }
-        drawPath(p, c.mira, style = Stroke(0.014f * w, cap = StrokeCap.Round))
+        drawPath(p, StudentCatalog.mira.color, style = Stroke(0.014f * w, cap = StrokeCap.Round))
     }
 }
 
 private fun DrawScope.drawClosedNotebook(c: ChalkroomColors, at: Offset, w: Float) {
     rotate(14f, at) {
-        drawRoundRect(c.pip, at, Size(0.2f * w, 0.12f * w), CornerRadius(0.01f * w))
+        drawRoundRect(StudentCatalog.pip.color, at, Size(0.2f * w, 0.12f * w), CornerRadius(0.01f * w))
         drawRoundRect(c.ink, at, Size(0.2f * w, 0.12f * w), CornerRadius(0.01f * w), style = Stroke(0.012f * w))
         drawLine(c.ink, Offset(at.x + 0.03f * w, at.y), Offset(at.x + 0.03f * w, at.y + 0.12f * w), 0.01f * w)
     }
@@ -121,7 +122,7 @@ private fun DrawScope.drawOpenNotebook(c: ChalkroomColors, center: Offset, w: Fl
 }
 
 private fun DrawScope.drawPlant(c: ChalkroomColors, base: Offset, w: Float) {
-    val leaf = c.pip.copy(red = 0.36f, green = 0.56f, blue = 0.36f)
+    val leaf = Color(0xFF6BAF5B)
     val stroke = Stroke(0.01f * w, join = StrokeJoin.Round)
     listOf(-35f, 0f, 35f).forEach { angle ->
         rotate(angle, base) {

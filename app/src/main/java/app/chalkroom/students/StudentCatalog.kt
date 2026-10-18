@@ -14,6 +14,8 @@ data class StudentProfile(
     val id: StudentId,
     val name: String,
     val color: Color,
+    /** A darker shade of [color]: mote rings, ledges, accents. */
+    val shade: Color,
     val intro: String,
     val stuckLine: String,
     val reliefLine: String,
@@ -24,7 +26,8 @@ object StudentCatalog {
     val mira = StudentProfile(
         id = StudentId.MIRA,
         name = "Mira",
-        color = Color(0xFFE2B04A),
+        color = Color(0xFFF2B93B),
+        shade = Color(0xFFB07D12),
         intro = "Hi, I'm Mira. I catch the big idea fast, but I tend to skip a step or a condition on the way.",
         stuckLine = "I keep going round in circles on this one. We could look at the answer together, or you could try me once more.",
         reliefLine = "Oh, that feels lighter. It all fits together now.",
@@ -33,7 +36,8 @@ object StudentCatalog {
     val pip = StudentProfile(
         id = StudentId.PIP,
         name = "Pip",
-        color = Color(0xFF4FA3A0),
+        color = Color(0xFF4FB3A9),
+        shade = Color(0xFF2C7A73),
         intro = "Pip here! I'm quick, maybe too quick. I mix up things that look alike.",
         stuckLine = "Okay, my head's all tangled. Show me the answer, or give it one more go, your call!",
         reliefLine = "Whoa, my head's quiet for once! Everything's where it belongs.",
@@ -42,7 +46,8 @@ object StudentCatalog {
     val juno = StudentProfile(
         id = StudentId.JUNO,
         name = "Juno",
-        color = Color(0xFF9C8CC4),
+        color = Color(0xFFA08BD6),
+        shade = Color(0xFF6A55A3),
         intro = "I'm Juno. I like to ask why, though sometimes I get what causes what backwards.",
         stuckLine = "I can't untangle this one yet. We could look at the answer, or you could try one last way.",
         reliefLine = "Hm. Now everything points the right way. That's a calm feeling.",
