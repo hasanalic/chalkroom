@@ -36,7 +36,7 @@ class ClosingViewModel(private val studentId: StudentId, repository: LessonRepos
             delay(RELIEF_AT_MS)
             _state.update { it.copy(beat = Beat.RELIEF) }
             delay(SETTLE_MS)
-            _state.update { it.copy(expression = Expression.IDLE) }
+            _state.update { it.copy(expression = Expression.RELAXED) }
             if (_state.value.whatStuck.isNotEmpty()) {
                 delay(WHAT_STUCK_AFTER_MS)
                 _state.update { it.copy(beat = Beat.WHAT_STUCK) }
