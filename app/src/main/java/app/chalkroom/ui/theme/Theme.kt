@@ -49,7 +49,9 @@ data class ChalkroomColors(
     val woodDeep: Color = Color(0xFFB9792C),
     val board: Color = Color(0xFF3E5149),
     val chair: Color = Color(0xFF5B6680),
-    val junoFace: Color = Color(0xFFFFF8EA),
+    // Juno's cream face and the shadow its hat brim casts on it.
+    val junoFace: Color = Color(0xFFF5EDE2),
+    val junoShadow: Color = Color(0xFF6B2A16),
 ) {
     // Older names kept so not-yet-restyled screens follow the new palette.
     val paper: Color get() = page

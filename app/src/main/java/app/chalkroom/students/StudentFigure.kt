@@ -37,6 +37,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.chalkroom.shared.StudentId
+import app.chalkroom.students.StudentShapes.drawBust
+import app.chalkroom.students.StudentShapes.drawFront
 import app.chalkroom.ui.theme.Chalkroom
 import app.chalkroom.ui.theme.ChalkroomTheme
 import kotlinx.coroutines.delay
@@ -128,7 +130,7 @@ fun StudentFigure(
 
     // Each mote condenses in when it first appears, and slides along the arc when another leaves.
     val live = motes.filter { it.clearProgress < 1f }
-    val slots = moteSlots(live.size)
+    val slots = moteSlots(live.size, StudentShapes.face(studentId).moteSpan)
     val appear = motes.map { mote ->
         key(mote.id) {
             val a = remember { Animatable(if (reduced) 1f else 0f) }
@@ -165,13 +167,14 @@ fun StudentFigure(
     ) {
         val w = size.width
         val h = size.height
-        val outline = Stroke(width = 0.028f * w, join = StrokeJoin.Round, cap = StrokeCap.Round)
+        val outline = Stroke(width = 0.032f * w, join = StrokeJoin.Round, cap = StrokeCap.Round)
         val face = StudentShapes.face(studentId)
         val a = attend.value
         val r = react.value
         val re = studentId.reaction(r)
 
         // Body: breathing fills it (taller, a touch narrower), the head tilts and follows the eyes late.
+        // The bust runs past the bottom edge and is cropped there, so a tilt never lifts a corner.
         val sx = 1f - 0.006f * breath - 0.01f * nod.value
         val sy = 1f + 0.02f * breath + stretch - 0.03f * nod.value + re.stretch + 0.025f * hop.value
         val headTurn = tilt + re.tilt + (glance.headX.value * (1f - lookW) + lookHead) * (1f - a) * 55f
@@ -180,62 +183,52 @@ fun StudentFigure(
             rotate(headTurn, Offset(w / 2, h))
             scale(sx, sy, Offset(w / 2, h))
         }) {
-            StudentShapes.tufts(studentId, size).forEach {
-                drawPath(it, profile.color)
-                drawPath(it, colors.ink, style = outline)
-            }
-            val body = StudentShapes.body(studentId, size)
-            drawPath(body, profile.color)
-            drawPath(body, colors.ink, style = outline)
-            if (studentId == StudentId.JUNO) {
-                val (c, r) = StudentShapes.junoFace(size)
-                drawCircle(colors.junoFace, r, c)
-                drawCircle(colors.ink, r, c, style = Stroke(0.018f * w))
-                drawPath(StudentShapes.junoStar(size), colors.card)
-                drawPath(StudentShapes.junoStar(size), colors.ink, style = Stroke(0.012f * w, join = StrokeJoin.Round))
-            }
+            drawBust(studentId, profile.color, colors, outline)
 
-            // Eyes: capsules, with lids that come down from the top. Looking up at you wins over a glance.
-            val fc = Offset(face.center.x * w, face.center.y * h)
+            // Eyes, with lids that come down from the top. Looking up at you wins over a glance.
             val gx = (glance.eyeX.value * (1f - lookW) + lookX * lookW) * (1f - a)
             val gy = (glance.eyeY.value * (1f - lookW) + lookY * lookW) * (1f - a) - 0.02f * a
             val dx = (eyeDx * (1f - a) + scan * scanWeight + gx + re.eyeDx) * w
             val dy = (eyeDy * (1f - a) + gy + re.eyeDy) * w
-            val ew = 0.062f * w * eyeScale
-            val eh = 0.105f * w * eyeScale
+            val ew = face.eyeW * w * eyeScale
+            val eh = face.eyeH * w * eyeScale
             val open = 1f - blink * 0.9f
             listOf(-1, 1).forEach { side ->
                 val shrink = if (side == 1) 1f - asym else 1f
-                val center = Offset(fc.x + side * face.eyeGap * w / 2 + dx, fc.y + dy - (if (side == -1) face.eyeTilt / 400f * w else 0f))
-                rotate(side * face.eyeTilt, center) {
+                val center = Offset(
+                    (face.center.x + side * face.eyeGap / 2) * w + dx,
+                    (face.center.y + side * face.eyeSlope / 2) * w + dy,
+                )
+                rotate(-side * face.eyeTilt, center) {
                     val eyeH = (eh * shrink * open).coerceAtLeast(ew * 0.25f)
                     val top = center.y - eyeH / 2
-                    val lids = (lid + re.lid).coerceIn(0f, 0.85f)
+                    // A hint of lid would only flatten the eye's top, so lids start showing past 0.06.
+                    val lids = ((lid + re.lid - 0.06f) / 0.94f).coerceIn(0f, 0.85f)
                     val lidY = top + eyeH * lids
                     clipRect(top = lidY) {
-                        drawRoundRect(
-                            color = colors.ink,
-                            topLeft = Offset(center.x - ew / 2, top),
-                            size = Size(ew, eyeH),
-                            cornerRadius = CornerRadius(ew / 2, ew / 2),
-                        )
+                        if (face.oval) {
+                            drawOval(colors.ink, Offset(center.x - ew / 2, top), Size(ew, eyeH))
+                        } else {
+                            drawRoundRect(colors.ink, Offset(center.x - ew / 2, top), Size(ew, eyeH), CornerRadius(ew / 2, ew / 2))
+                        }
                     }
                     if (lids > 0.22f && blink < 0.5f) {
-                        drawLine(colors.ink, Offset(center.x - ew * 0.75f, lidY), Offset(center.x + ew * 0.75f, lidY), 0.016f * w, StrokeCap.Round)
+                        drawLine(colors.ink, Offset(center.x - ew * 0.75f, lidY), Offset(center.x + ew * 0.75f, lidY), 0.018f * w, StrokeCap.Round)
                     }
                     if (eyeScale > 1.1f && blink < 0.5f) {
                         drawCircle(colors.page, ew * 0.18f * (eyeScale - 1f) * 3f, Offset(center.x - ew * 0.12f, center.y - eyeH * 0.22f))
                     }
                 }
             }
+            drawFront(studentId, profile.color, colors, outline)
         } }
 
-        // Motes: cream circles ringed in the student's shade, in an arc around the head.
-        val cx = face.center.x * w
-        val cy = face.center.y * h
-        val ry = cy - face.moteCenterY * h
-        val rx = 0.42f * w
-        val eye = Offset(cx + face.eyeGap * w / 2, cy)
+        // Motes: cream circles ringed in the student's shade, on an arc that clears the head.
+        val cx = face.moteCenter.x * w
+        val cy = face.moteCenter.y * w
+        val ry = cy - face.moteTop * w
+        val rx = face.moteRx * w
+        val eye = Offset((face.center.x + face.eyeGap / 2) * w, face.center.y * w)
         motes.forEachIndexed { i, mote ->
             val appearA = appear[i].value
             val gone = mote.clearProgress
@@ -251,7 +244,7 @@ fun StudentFigure(
             val c = Offset(rest.x + (eye.x - rest.x) * toEye, rest.y + (eye.y - rest.y) * toEye)
             val r = MOTE_R * w * appearA * (if (live.size == 1) lastScale else 1f) * (1f - 0.7f * toEye)
             val ringAlpha = (if (activeMoteId == null || mote.id == activeMoteId) 1f else 0.35f) * (1f - toEye)
-            drawMote(c, r, resolve, colors.page.copy(alpha = 1f - toEye), profile.shade.copy(alpha = ringAlpha), 0.014f * w)
+            drawMote(c, r, resolve, colors.page.copy(alpha = 1f - toEye), profile.shade.copy(alpha = ringAlpha), 0.016f * w)
         }
     }
 }
@@ -276,9 +269,9 @@ private fun StudentId.reactMs(): Pair<Int, Int> = when (this) {
 }
 
 /** Arc angles (degrees; 270 is straight up) for [n] motes, centred over the head. */
-private fun moteSlots(n: Int): List<Float> {
+private fun moteSlots(n: Int, maxSpan: Float): List<Float> {
     if (n <= 1) return listOf(270f)
-    val span = minOf(150f, 55f * (n - 1))
+    val span = minOf(maxSpan, 55f * (n - 1))
     return List(n) { 270f - span / 2 + it * span / (n - 1) }
 }
 

@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
@@ -67,6 +68,7 @@ import app.chalkroom.ui.components.PrimaryButton
 import app.chalkroom.ui.components.QuietButton
 import app.chalkroom.ui.theme.Chalkroom
 import app.chalkroom.ui.theme.ChalkroomTheme
+import app.chalkroom.ui.theme.Radii
 import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -125,7 +127,17 @@ fun ClosingContent(state: UiState, onEvent: (UiEvent) -> Unit) {
         ) {
             Text("Nothing left in ${profile.name}'s head", style = Chalkroom.type.display, textAlign = TextAlign.Center)
             Spacer(Modifier.height(12.dp))
-            StudentFigure(state.studentId, state.expression, Modifier.width(150.dp))
+            // The bust is cropped by the frame's bottom edge, as on the lesson stage.
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(196.dp)
+                    .clip(RoundedCornerShape(Radii.card))
+                    .background(profile.color.copy(alpha = 0.18f).compositeOver(colors.page)),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                StudentFigure(state.studentId, state.expression, Modifier.width(150.dp))
+            }
 
             AnimatedVisibility(state.reached(Beat.RELIEF), enter = fadeIn(tween(320))) {
                 LineCard(profile.reliefLine, Modifier.fillMaxWidth().padding(top = 16.dp))
