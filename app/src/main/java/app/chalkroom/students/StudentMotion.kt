@@ -9,6 +9,7 @@ import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -52,7 +53,7 @@ fun Expression.targets(): FaceTargets = when (this) {
     Expression.THINKING -> FaceTargets(0.92f, 0.05f, -0.045f, 0f, 0.12f, 4f, 0f)
     Expression.PUZZLED -> FaceTargets(1f, 0f, 0f, 0.35f, 0.05f, -6f, 0f)
     Expression.GOT_IT -> FaceTargets(1.3f, 0f, -0.01f, 0f, 0f, 0f, 0.03f)
-    Expression.RELAXED -> FaceTargets(0.96f, 0f, 0.005f, 0f, 0.38f, 2f, -0.01f)
+    Expression.RELAXED -> FaceTargets(0.98f, 0f, 0.005f, 0f, 0.16f, 2f, -0.01f)
 }
 
 /** Expressions where the eyes wander on their own. */
@@ -134,13 +135,23 @@ fun rememberGlance(active: Boolean): Glance {
     return g
 }
 
-/** Side-to-side scan while reading, in fractions of the figure width. */
+/** Reading along a line: left to right, a pause, a short glance back, a pause, then back to the start. */
 @Composable
 fun rememberScan(): State<Float> =
     rememberInfiniteTransition(label = "scan").animateFloat(
         initialValue = -0.04f,
-        targetValue = 0.04f,
-        animationSpec = infiniteRepeatable(tween(900, easing = EaseInOutSine), RepeatMode.Reverse),
+        targetValue = -0.04f,
+        animationSpec = infiniteRepeatable(
+            keyframes {
+                durationMillis = 2_600
+                -0.04f at 0 using EaseInOutSine
+                0.04f at 1_000 using Dart
+                0.04f at 1_400 using Dart
+                0.012f at 1_650 using EaseInOutSine
+                0.012f at 2_000 using Dart
+                -0.04f at 2_400
+            },
+        ),
         label = "scan",
     )
 

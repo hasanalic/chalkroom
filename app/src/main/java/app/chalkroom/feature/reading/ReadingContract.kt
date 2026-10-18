@@ -19,6 +19,8 @@ object ReadingContract {
         val motes: List<Mote> = emptyList(),
         val expression: Expression = Expression.IDLE,
         val look: Look = Look.READING,
+        /** Bumps for a small, misguided nod while reading. */
+        val nodTick: Int = 0,
     )
 
     sealed interface UiEvent {

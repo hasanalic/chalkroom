@@ -63,7 +63,8 @@ class ReadingViewModel(
                     delay(GLANCE_EVERY_MS)
                     _state.update { it.copy(expression = Expression.PUZZLED) }
                     delay(GLANCE_MS)
-                    _state.update { it.copy(expression = Expression.IDLE) }
+                    // ...then a small nod, as if it made sense.
+                    _state.update { it.copy(expression = Expression.IDLE, nodTick = it.nodTick + 1) }
                 }
             }
             val started = System.currentTimeMillis()
@@ -81,9 +82,12 @@ class ReadingViewModel(
                         return@launch
                     }
                     _state.update { it.copy(phase = Phase.REVEALING, expression = Expression.PUZZLED) }
+                    // Motes condense one by one, faster as they go.
+                    var stagger = MOTE_STAGGER_MS
                     deck.misconceptions.forEach { m ->
                         _state.update { it.copy(motes = it.motes + Mote(m.id)) }
-                        delay(MOTE_STAGGER_MS)
+                        delay(stagger)
+                        stagger = (stagger * MOTE_SPEEDUP).toLong()
                     }
                     _state.update { it.copy(phase = Phase.COUNTED, look = Look.AT_YOU) }
                     delay(COUNT_HOLD_MS)
@@ -99,7 +103,8 @@ class ReadingViewModel(
         const val MIN_READ_MS = 1_800L
         const val GLANCE_EVERY_MS = 2_400L
         const val GLANCE_MS = 700L
-        const val MOTE_STAGGER_MS = 600L
+        const val MOTE_STAGGER_MS = 800L
+        const val MOTE_SPEEDUP = 0.65
         const val COUNT_HOLD_MS = 2_400L
     }
 }

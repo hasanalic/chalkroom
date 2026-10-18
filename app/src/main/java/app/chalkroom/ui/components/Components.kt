@@ -10,6 +10,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -187,6 +188,7 @@ fun LineCard(text: String, modifier: Modifier = Modifier, content: (@Composable 
             shape = CardShape,
             color = colors.ink,
             ledgeColor = colors.lavender2,
+            modifier = Modifier.fillMaxWidth(),
             contentModifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
         ) {
             if (content != null) content() else Text(text, style = Chalkroom.type.studentLine)

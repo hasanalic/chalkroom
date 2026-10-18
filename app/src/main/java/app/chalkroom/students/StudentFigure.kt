@@ -59,7 +59,8 @@ private const val LAST_MOTE_SCALE = 1.25f
  * every ring is full. [motesStill] freezes the motes' drift (a clearing is under way). Each bump of
  * [reactTick] plays the student's own unconvinced reaction (a miss): never red, never a shake.
  * [lookAt] points the eyes somewhere (fractions of the width; the head follows late) and each bump
- * of [hopTick] is a small bounce: the classroom's ambient life uses both.
+ * of [hopTick] is a small bounce: the classroom's ambient life uses both. Each bump of [nodTick]
+ * is a small nod (the same one a tap gives, without looking up).
  */
 @Composable
 fun StudentFigure(
@@ -73,6 +74,7 @@ fun StudentFigure(
     reactTick: Int = 0,
     lookAt: Offset? = null,
     hopTick: Int = 0,
+    nodTick: Int = 0,
 ) {
     val profile = StudentCatalog[studentId]
     val colors = Chalkroom.colors
@@ -102,6 +104,11 @@ fun StudentFigure(
         if (hopTick == 0) return@LaunchedEffect
         hop.animateTo(1f, tween(150, easing = Dart))
         hop.animateTo(0f, settle())
+    }
+    LaunchedEffect(nodTick) {
+        if (nodTick == 0) return@LaunchedEffect
+        nod.animateTo(1f, tween(170))
+        nod.animateTo(0f, settle())
     }
     val lookW by animateFloatAsState(if (lookAt != null) 1f else 0f, tween(260, easing = Dart), label = "lookW")
     val lookX by animateFloatAsState(lookAt?.x ?: 0f, tween(260, easing = Dart), label = "lookX")
@@ -213,7 +220,7 @@ fun StudentFigure(
                             cornerRadius = CornerRadius(ew / 2, ew / 2),
                         )
                     }
-                    if (lids > 0.08f && blink < 0.5f) {
+                    if (lids > 0.22f && blink < 0.5f) {
                         drawLine(colors.ink, Offset(center.x - ew * 0.75f, lidY), Offset(center.x + ew * 0.75f, lidY), 0.016f * w, StrokeCap.Round)
                     }
                     if (eyeScale > 1.1f && blink < 0.5f) {

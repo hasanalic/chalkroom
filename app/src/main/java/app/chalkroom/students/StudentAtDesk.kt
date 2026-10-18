@@ -61,6 +61,7 @@ fun StudentAtDesk(
     showName: Boolean = true,
     lookAt: Offset? = null,
     hopTick: Int = 0,
+    nodTick: Int = 0,
     propMotion: Float = 0f,
     doodleStrokes: Int = 0,
 ) {
@@ -79,6 +80,7 @@ fun StudentAtDesk(
                 look = look,
                 lookAt = lookAt,
                 hopTick = hopTick,
+                nodTick = nodTick,
                 modifier = Modifier.fillMaxWidth(FIGURE_SHARE).align(Alignment.TopCenter),
             )
             Box(
