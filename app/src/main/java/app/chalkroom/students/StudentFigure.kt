@@ -1,6 +1,7 @@
 package app.chalkroom.students
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseInOutSine
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -57,7 +58,8 @@ private const val LAST_MOTE_SCALE = 1.25f
  * THE character: one composable, used unchanged on every screen. Body, face and motes are drawn
  * in one Canvas from code-built Paths; breathing, blinking, glances and expression tweens run
  * inside. [activeMoteId] gets a full ring and the others a faded one (lesson); with no active mote
- * every ring is full. [motesStill] freezes the motes' drift (a clearing is under way).
+ * every ring is full. [motesStill] freezes the motes' drift (a clearing is under way). Each bump of
+ * [reactTick] plays the student's own unconvinced reaction (a miss): never red, never a shake.
  */
 @Composable
 fun StudentFigure(
@@ -68,6 +70,7 @@ fun StudentFigure(
     look: Look = Look.AT_YOU,
     activeMoteId: String? = null,
     motesStill: Boolean = false,
+    reactTick: Int = 0,
 ) {
     val profile = StudentCatalog[studentId]
     val colors = Chalkroom.colors
@@ -83,6 +86,14 @@ fun StudentFigure(
     val attend = remember { Animatable(0f) }
     val nod = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
+
+    val react = remember { Animatable(0f) }
+    LaunchedEffect(reactTick) {
+        if (reactTick == 0) return@LaunchedEffect
+        val (inMs, outMs) = studentId.reactMs()
+        react.animateTo(1f, tween(inMs, easing = Dart))
+        react.animateTo(0f, tween(outMs, easing = EaseInOutSine))
+    }
 
     val t = expression.targets()
     val readingDy = if (look == Look.READING) 0.045f else 0f
@@ -137,13 +148,15 @@ fun StudentFigure(
         val outline = Stroke(width = 0.028f * w, join = StrokeJoin.Round, cap = StrokeCap.Round)
         val face = StudentShapes.face(studentId)
         val a = attend.value
+        val r = react.value
+        val re = studentId.reaction(r)
 
         // Body: breathing fills it (taller, a touch narrower), the head tilts and follows the eyes late.
         val sx = 1f - 0.006f * breath - 0.01f * nod.value
-        val sy = 1f + 0.02f * breath + stretch - 0.03f * nod.value
-        val headTurn = tilt + glance.headX.value * (1f - a) * 55f
+        val sy = 1f + 0.02f * breath + stretch - 0.03f * nod.value + re.stretch
+        val headTurn = tilt + re.tilt + glance.headX.value * (1f - a) * 55f
         clipRect(bottom = h) { withTransform({
-            translate(top = nod.value * 0.02f * w)
+            translate(top = (nod.value * 0.02f + re.lift) * w)
             rotate(headTurn, Offset(w / 2, h))
             scale(sx, sy, Offset(w / 2, h))
         }) {
@@ -166,8 +179,8 @@ fun StudentFigure(
             val fc = Offset(face.center.x * w, face.center.y * h)
             val gx = glance.eyeX.value * (1f - a)
             val gy = glance.eyeY.value * (1f - a) - 0.02f * a
-            val dx = (eyeDx * (1f - a) + scan * scanWeight + gx) * w
-            val dy = (eyeDy * (1f - a) + gy) * w
+            val dx = (eyeDx * (1f - a) + scan * scanWeight + gx + re.eyeDx) * w
+            val dy = (eyeDy * (1f - a) + gy + re.eyeDy) * w
             val ew = 0.062f * w * eyeScale
             val eh = 0.105f * w * eyeScale
             val open = 1f - blink * 0.9f
@@ -177,7 +190,8 @@ fun StudentFigure(
                 rotate(side * face.eyeTilt, center) {
                     val eyeH = (eh * shrink * open).coerceAtLeast(ew * 0.25f)
                     val top = center.y - eyeH / 2
-                    val lidY = top + eyeH * lid
+                    val lids = (lid + re.lid).coerceIn(0f, 0.85f)
+                    val lidY = top + eyeH * lids
                     clipRect(top = lidY) {
                         drawRoundRect(
                             color = colors.ink,
@@ -186,7 +200,7 @@ fun StudentFigure(
                             cornerRadius = CornerRadius(ew / 2, ew / 2),
                         )
                     }
-                    if (lid > 0.08f && blink < 0.5f) {
+                    if (lids > 0.08f && blink < 0.5f) {
                         drawLine(colors.ink, Offset(center.x - ew * 0.75f, lidY), Offset(center.x + ew * 0.75f, lidY), 0.016f * w, StrokeCap.Round)
                     }
                     if (eyeScale > 1.1f && blink < 0.5f) {
@@ -222,6 +236,25 @@ fun StudentFigure(
     }
 }
 
+/** A miss, per student, at [r] 0 → 1 → 0. */
+private data class Reaction(val tilt: Float = 0f, val lift: Float = 0f, val stretch: Float = 0f, val lid: Float = 0f, val eyeDx: Float = 0f, val eyeDy: Float = 0f)
+
+private fun StudentId.reaction(r: Float): Reaction = when (this) {
+    // Tilts the head and squints.
+    StudentId.MIRA -> Reaction(tilt = -8f * r, lid = 0.4f * r)
+    // A quick bounce and a sideways look.
+    StudentId.PIP -> Reaction(lift = -0.05f * r, stretch = 0.03f * r, eyeDx = 0.06f * r)
+    // A slow lean back, eyes up.
+    StudentId.JUNO -> Reaction(tilt = 5f * r, stretch = -0.025f * r, lift = 0.015f * r, eyeDy = -0.045f * r, lid = 0.1f * r)
+}
+
+/** In/out durations; the whole reaction fits inside the lesson's unconvinced beat (550 ms). */
+private fun StudentId.reactMs(): Pair<Int, Int> = when (this) {
+    StudentId.MIRA -> 200 to 330
+    StudentId.PIP -> 140 to 300
+    StudentId.JUNO -> 260 to 280
+}
+
 /** Arc angles (degrees; 270 is straight up) for [n] motes, centred over the head. */
 private fun moteSlots(n: Int): List<Float> {
     if (n <= 1) return listOf(270f)
@@ -246,16 +279,6 @@ private fun StudentFigurePreview() {
             StudentFigure(StudentId.PIP, Expression.PUZZLED, Modifier.width(130.dp), motes = listOf(Mote("a")))
             StudentFigure(StudentId.JUNO, Expression.GOT_IT, Modifier.width(130.dp))
         }
-    }
-}
-
-/** The per-student unconvinced pose, [progress] 0 → 1 → 0: Mira tilts, Pip squints lopsided, Juno narrows. Never a shake. */
-fun Modifier.unconvinced(studentId: StudentId, progress: Float): Modifier = graphicsLayer {
-    transformOrigin = TransformOrigin(0.5f, 1f)
-    when (studentId) {
-        StudentId.MIRA -> rotationZ = -7f * progress
-        StudentId.PIP -> { scaleX = 1f + 0.05f * progress; scaleY = 1f - 0.04f * progress; rotationZ = 3f * progress }
-        StudentId.JUNO -> { scaleX = 1f - 0.03f * progress; translationY = 4f * progress * density }
     }
 }
 

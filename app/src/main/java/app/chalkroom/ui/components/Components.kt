@@ -101,7 +101,7 @@ private fun LedgeButton(
         modifier = modifier,
         contentModifier = Modifier
             .clickable(interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 26.dp, vertical = 14.dp),
+            .padding(horizontal = 20.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
