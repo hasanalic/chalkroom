@@ -208,13 +208,14 @@ fun StudentFigure(
                 // A hint of lid would only flatten the eye's top, so lids start showing past 0.06.
                 val lids = ((lid + re.lid - 0.06f) / 0.94f).coerceIn(0f, 0.85f)
                 val lidY = top + eyeH * lids
-                // Lids stay level even on slanted eyes (a slanted lid reads as a frown). A soft lid
-                // dips in the middle.
-                val dip = soft * eyeH * 0.16f
+                // Lid lines never slope down toward the middle of the face (that reads as a frown). They
+                // are drawn level on screen, undoing the head tilt and the eye slant, and a soft lid
+                // only sags toward the outer corner.
+                val droop = soft * eyeH * 0.14f
                 val half = ew * 0.8f
                 val lidEdge = Path().apply {
-                    moveTo(center.x - half, lidY - dip)
-                    quadraticTo(center.x, lidY + dip, center.x + half, lidY - dip)
+                    moveTo(center.x - half, lidY - side * droop)
+                    quadraticTo(center.x, lidY - droop * 0.6f, center.x + half, lidY + side * droop)
                 }
                 val below = Path().apply {
                     addPath(lidEdge)
@@ -222,17 +223,19 @@ fun StudentFigure(
                     lineTo(center.x - half, top + eyeH * 2)
                     close()
                 }
-                clipPath(below) {
-                    rotate(-side * face.eyeTilt, center) {
-                        if (face.oval) {
-                            drawOval(colors.ink, Offset(center.x - ew / 2, top), Size(ew, eyeH))
-                        } else {
-                            drawRoundRect(colors.ink, Offset(center.x - ew / 2, top), Size(ew, eyeH), CornerRadius(ew / 2, ew / 2))
+                rotate(-headTurn, center) {
+                    clipPath(below) {
+                        rotate(headTurn - side * face.eyeTilt, center) {
+                            if (face.oval) {
+                                drawOval(colors.ink, Offset(center.x - ew / 2, top), Size(ew, eyeH))
+                            } else {
+                                drawRoundRect(colors.ink, Offset(center.x - ew / 2, top), Size(ew, eyeH), CornerRadius(ew / 2, ew / 2))
+                            }
                         }
                     }
-                }
-                if (lids > 0.22f && blink < 0.5f) {
-                    drawPath(lidEdge, colors.ink, style = Stroke(0.018f * w, cap = StrokeCap.Round))
+                    if (lids > 0.22f && blink < 0.5f) {
+                        drawPath(lidEdge, colors.ink, style = Stroke(0.018f * w, cap = StrokeCap.Round))
+                    }
                 }
                 if (eyeScale > 1.1f && blink < 0.5f) {
                     drawCircle(colors.page, ew * 0.18f * (eyeScale - 1f) * 3f, Offset(center.x - ew * 0.12f, center.y - eyeH * 0.22f))
