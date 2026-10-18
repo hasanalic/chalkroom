@@ -19,3 +19,6 @@ data class Reading(val studentId: StudentId)
 
 @Serializable
 data class Lesson(val studentId: StudentId)
+
+@Serializable
+data class Closing(val studentId: StudentId)

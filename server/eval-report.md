@@ -133,4 +133,5 @@ Flaw shaping re-run once after the deck and false-belief changes (5 candidates, 
 - **Juno — photosynthesis**, 2 of 3 beliefs missed:
   - “I think plants absorb light energy because they need to produce carbon dioxide and water.” Graded CONFUSION 3/3 (inputs and outputs swapped).
   - “I think plants absorb light energy because chlorophyll is already present in the chloroplasts.” Graded OTHER 2/3 (a causal link the notes don't state). This one also missed last run.
+- **Accepted:** Mira 7/9 (target was 7/8) and the one Mira/Pip overlap are accepted as known limitations. No further prompt tuning.
 - **Deck size:** 3 every time in this run. The server may still return 1–2 when both calls come up short; the app says the real count.

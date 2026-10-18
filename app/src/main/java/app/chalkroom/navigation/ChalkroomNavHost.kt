@@ -12,6 +12,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import app.chalkroom.feature.choosestudent.ChooseStudentScreen
+import app.chalkroom.feature.closing.ClosingScreen
 import app.chalkroom.feature.classroom.ClassroomScreen
 import app.chalkroom.feature.lesson.LessonScreen
 import app.chalkroom.feature.pastenotes.PasteNotesScreen
@@ -59,7 +60,18 @@ fun ChalkroomNavHost() {
             )
         }
         composable<Lesson> { entry ->
-            LessonScreen(studentId = entry.toRoute<Lesson>().studentId)
+            val studentId = entry.toRoute<Lesson>().studentId
+            LessonScreen(
+                studentId = studentId,
+                onClosing = { nav.navigate(Closing(studentId)) { popUpTo(Classroom) } },
+            )
+        }
+        composable<Closing> { entry ->
+            ClosingScreen(
+                studentId = entry.toRoute<Closing>().studentId,
+                onTeachAgain = { nav.navigate(PasteNotes(preselected = it)) { popUpTo(Classroom) } },
+                onBackToClass = { nav.popBackStack(Classroom, inclusive = false) },
+            )
         }
     }
 }

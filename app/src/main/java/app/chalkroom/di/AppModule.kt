@@ -5,6 +5,7 @@ import app.chalkroom.data.ChalkroomApi
 import app.chalkroom.data.LessonRepository
 import app.chalkroom.feature.choosestudent.ChooseStudentViewModel
 import app.chalkroom.feature.classroom.ClassroomViewModel
+import app.chalkroom.feature.closing.ClosingViewModel
 import app.chalkroom.feature.lesson.LessonViewModel
 import app.chalkroom.feature.pastenotes.PasteNotesViewModel
 import app.chalkroom.feature.reading.ReadingViewModel
@@ -39,5 +40,6 @@ val appModule = module {
     viewModel { params -> PasteNotesViewModel(params.getOrNull<StudentId>(), get()) }
     viewModelOf(::ChooseStudentViewModel)
     viewModel { params -> ReadingViewModel(params.get(), get(), get()) }
-    viewModel { params -> LessonViewModel(params.get(), get()) }
+    viewModel { params -> LessonViewModel(params.get(), get(), get()) }
+    viewModel { params -> ClosingViewModel(params.get(), get()) }
 }

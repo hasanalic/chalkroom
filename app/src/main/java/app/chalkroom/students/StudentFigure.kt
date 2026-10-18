@@ -158,9 +158,15 @@ fun StudentFigure(
             val gone = mote.clearProgress
             if (gone >= 1f || a <= 0f) return@forEachIndexed
             val angle = 2 * PI * (i.toFloat() / count + orbit)
-            val cx = w * (face.center.x + 0.36f * cos(angle).toFloat())
-            val cy = size.height * face.moteCenterY + 0.075f * w * sin(angle).toFloat() + 0.015f * w * sin(angle * 3).toFloat()
-            drawMote(Offset(cx, cy), 0.07f * w * a * (1f - 0.6f * gone), colors.mote.copy(alpha = colors.mote.alpha * a * (1f - gone)))
+            val ox = w * (face.center.x + 0.36f * cos(angle).toFloat())
+            val oy = size.height * face.moteCenterY + 0.075f * w * sin(angle).toFloat() + 0.015f * w * sin(angle * 3).toFloat()
+            // Clearing: 0 → 0.5 the fog resolves (tightens, firms up); 0.5 → 1 it drifts into the eye.
+            val resolve = (gone / 0.5f).coerceIn(0f, 1f)
+            val drift = ((gone - 0.5f) / 0.5f).coerceIn(0f, 1f)
+            val eye = Offset(face.center.x * w + face.eyeGap * w / 2, face.center.y * size.height)
+            val c = Offset(ox + (eye.x - ox) * drift, oy + (eye.y - oy) * drift)
+            val alpha = (colors.mote.alpha * (1f + 0.4f * resolve)).coerceAtMost(1f) * a * (1f - drift)
+            drawMote(c, 0.07f * w * a * (1f - 0.3f * resolve) * (1f - 0.75f * drift), colors.mote.copy(alpha = alpha))
         }
     }
 }
@@ -190,6 +196,16 @@ private fun StudentFigurePreview() {
 }
 
 /** Modifier for a small nod: [progress] 0 → 1 → 0 tips the figure forward from its base. */
+/** The per-student unconvinced pose, [progress] 0 → 1 → 0: Mira tilts, Pip squints lopsided, Juno narrows. Never a shake. */
+fun Modifier.unconvinced(studentId: StudentId, progress: Float): Modifier = graphicsLayer {
+    transformOrigin = TransformOrigin(0.5f, 1f)
+    when (studentId) {
+        StudentId.MIRA -> rotationZ = -7f * progress
+        StudentId.PIP -> { scaleX = 1f + 0.05f * progress; scaleY = 1f - 0.04f * progress; rotationZ = 3f * progress }
+        StudentId.JUNO -> { scaleX = 1f - 0.03f * progress; translationY = 4f * progress * density }
+    }
+}
+
 fun Modifier.nod(progress: Float): Modifier = graphicsLayer {
     transformOrigin = TransformOrigin(0.5f, 1f)
     translationY = progress * 6f * density

@@ -49,7 +49,7 @@ Build mode: fast
   Learner check: Run the app on the emulator, paste your notes, pick a student and watch them read. Say whether the classroom and characters feel like the picture-book room you pictured.
   Commit: `Add classroom, paste, choose and reading screens`
 
-- [ ] **5. You can teach a misconception until it clears, through to closing**
+- [x] **5. You can teach a misconception until it clears, through to closing**
   Becomes usable: Full core journey on the emulator: the student states misconception 1; vague → unconvinced reaction + reply; precise → clearing choreography at fixed timings with two haptics, counter + bar drop, reply echoes your words, next misconception; after the last one, Closing with "Nothing left in [Name]'s head", relief line, What stuck, notebook closes with topicTitle, then Teach [Name] something else / Back to class.
   Why now: This is the kernel in the product; everything after it is unstuck/pause polish.
   PRD ref: `prd.md > Screens and Layout > Lesson / Closing`, `prd.md > Teaching a Misconception`, `prd.md > Closing and What Stuck`
@@ -120,3 +120,4 @@ Activity mode:
 - `/decks` tops up to 3 with non-matching items when the flaw filter leaves fewer (`selectMisconceptions`, unit-tested). It can't add items the model never returned: a smoke call on `gemini-3.6-flash` returned only 2.
 - Decks fixed at 3 from 5 candidates with one retry; every belief must be false as stated; say-rule leak check narrowed to stating/paraphrasing (re-scored: 18/18). Flaw shaping re-run once: 9/9 decks of 3, true-but-incomplete beliefs gone, overall 85.2%, but Mira 7/9 (target 7/8) and one Mira/Pip overlap on supply_demand. Recorded in `server/eval-report.md`, not tuned.
 - Slice 4 build setup: AGP 9.4.1 needs Gradle ≥ 9.6, so the wrapper moved to 9.8.1; the current AndroidX/Compose releases need compileSdk 37 (targetSdk 37). The UI font is the system sans for now (Nunito was only a suggestion; stand-in for slice 7). Reading lands on a minimal Lesson view (student, counter, misconception 1) that slice 5 turns into the teaching screen.
+- Slice 5 pulled the stuck flow forward: all `LessonLogic` steps (`markStuck`, `chooseLastTry`, `revealAnswer`, `clearRevealed`, `pause`) plus the stuck buttons, answer card and 409 → answer card are built and tested, so a hands-on lesson can never dead-end at turn 4. Slice 6 is left with pause/resume: board, paused desks and the resume paths. Verified on emulator: vague try keeps the counter, precise try clears at the fixed timeline with pad squiggles, failed turn returns your words, attempt 3 asks to start over, missed 4th shows the stuck line, See the answer → Continue drops the counter and stays out of What stuck, closing hides What stuck when nothing was cleared by you.
