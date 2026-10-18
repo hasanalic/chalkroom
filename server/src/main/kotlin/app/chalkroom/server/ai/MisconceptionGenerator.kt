@@ -73,7 +73,9 @@ class MisconceptionGenerator(private val gemini: GeminiClient, private val setti
           (for example "I think a plant gets its food from the soil."). Never say it is a misconception.
         - Every belief must be FALSE as stated and contradict the notes: a reader of the notes must be able to point at what
           it gets wrong. A true statement that merely leaves details out is not a misconception; never write one.
-        - Write $CANDIDATES candidates, each about a different idea where possible, best first.
+        - Write $CANDIDATES candidates, best first. Each must be about a DIFFERENT fact in the notes: two beliefs that get the
+          same fact wrong are duplicates, even when worded differently (for example two beliefs that both forget that light is
+          needed). Never write duplicates; if the notes run out of distinct facts, write fewer good ones rather than repeat one.
         - "nothingToLearn": true only if the text has no factual or conceptual content to learn at all (then the candidates are ignored).
         - For each, first set "flaw" to the one flaw the belief is an instance of: OMISSION (leaves out a key step or condition),
           CONFUSION (swaps two similar things), or REVERSAL (reverses a stated cause and effect). Label honestly:

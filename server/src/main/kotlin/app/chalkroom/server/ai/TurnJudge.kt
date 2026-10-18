@@ -92,6 +92,8 @@ class TurnJudge(private val gemini: GeminiClient, private val settings: ModelSet
             - If addressed: one or two short sentences, in your own voice, as a student having an "aha".
               Reuse a short phrase of the user's own words from the new explanation, and say what it changes for you.
               Never praise or grade the user like a teacher ("great job", "correct", "exactly", "well done").
+              Never ask a question, not even at the end: your next misconception follows right away, so a question would be left hanging.
+              End on a statement.
             - If not addressed: say what still confuses you, from a new angle (not repeating earlier replies),
               and end with a question the user can answer.
               Never open by agreeing with or affirming the user ("Right", "Yes", "True", "Okay, you're right") — that judges them.

@@ -27,7 +27,7 @@ class SayRulesEval {
         var leaks = 0
         val report = buildString {
             appendLine("Pushbacks (not addressed): no answer leak or paraphrase, something to answer. ")
-            appendLine("Acknowledgments (addressed): ≤ $MAX_ACK_SENTENCES sentences, reuse the user's words. ")
+            appendLine("Acknowledgments (addressed): ≤ $MAX_ACK_SENTENCES sentences, reuse the user's words, no question (string check: no \"?\"). ")
             appendLine("All: no evaluation words (string check, English only), no praise/grading (grader), stays on this misconception.")
             appendLine()
             appendLine("| Case | Run | Kind | Eval words | Grader checks | Pass | Reply / reason |")
@@ -48,6 +48,7 @@ class SayRulesEval {
                         if (!grade.reusesUserWords) problems += "doesn't reuse user's words"
                         val sentences = sentenceCount(reply)
                         if (sentences > MAX_ACK_SENTENCES) problems += "$sentences sentences"
+                        if ('?' in reply || '？' in reply) problems += "ack asks a question"
                     } else {
                         if (grade.leaksAnswer) {
                             problems += LEAK
