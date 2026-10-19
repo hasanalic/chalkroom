@@ -1,0 +1,15 @@
+# Keep secrets and local build state out of the image's build context.
+.env
+.env.*
+local.properties
+**/build/
+.gradle/
+.kotlin/
+.idea/
+.git/
+devpost/
+agent/
+.agents/
+.claude/
+*.jks
+*.keystore
