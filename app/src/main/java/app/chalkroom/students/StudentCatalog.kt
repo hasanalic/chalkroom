@@ -6,8 +6,8 @@ import app.chalkroom.shared.StudentId
 enum class DeskProp { DOODLE, NOTEBOOK, PLANT }
 
 /**
- * Everything fixed about a student. The intro, stuck and relief lines are the only student lines
- * not written by the AI (scope.md > Explicitly Cut). They're English, written once in each voice,
+ * Everything fixed about a student. The intro, stuck, relief and chatter lines are the only student
+ * lines not written by the AI (scope.md > Explicitly Cut). They're English, written once in each voice,
  * and never grade the user.
  */
 data class StudentProfile(
@@ -22,6 +22,8 @@ data class StudentProfile(
     val answerLine: String,
     val reliefLine: String,
     val prop: DeskProp,
+    /** Small talk when tapped in the classroom, in their own voice. Never about lesson content. */
+    val chatter: List<String>,
 )
 
 object StudentCatalog {
@@ -35,6 +37,13 @@ object StudentCatalog {
         answerLine = "Okay, let's read it together. I'll follow every step this time.",
         reliefLine = "Oh, that feels lighter. It all fits together now.",
         prop = DeskProp.DOODLE,
+        chatter = listOf(
+            "Do clouds ever get tired?",
+            "Oh! Hi. I was somewhere else.",
+            "I think the clock is humming.",
+            "Mm… what were we doing?",
+            "I like the light in here.",
+        ),
     )
     val pip = StudentProfile(
         id = StudentId.PIP,
@@ -46,6 +55,13 @@ object StudentCatalog {
         answerLine = "Ooh, the answer! Reading it slowly. Slowly, Pip.",
         reliefLine = "Whoa, my head's quiet for once! Everything's where it belongs.",
         prop = DeskProp.NOTEBOOK,
+        chatter = listOf(
+            "Hi! Hi. What now?",
+            "Ready! Are we going?",
+            "I already know it. Probably!",
+            "I've been waiting ages!",
+            "Pick me next!",
+        ),
     )
     val juno = StudentProfile(
         id = StudentId.JUNO,
@@ -57,6 +73,13 @@ object StudentCatalog {
         answerLine = "Let's look at it, then. I want to see what the real reason is.",
         reliefLine = "Hm. Every why has its real reason now. That's a calm feeling.",
         prop = DeskProp.PLANT,
+        chatter = listOf(
+            "Hello… there.",
+            "I'm… thinking about it.",
+            "No rush. None at all.",
+            "Hm. Yes. Hello again.",
+            "One thing… at a time.",
+        ),
     )
 
     val all = listOf(mira, pip, juno)

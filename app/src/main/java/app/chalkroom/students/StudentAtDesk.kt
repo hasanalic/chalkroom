@@ -65,6 +65,8 @@ fun StudentAtDesk(
     propMotion: Float = 0f,
     doodleStrokes: Int = 0,
     asleep: Boolean = false,
+    noticeTick: Int = 0,
+    callTick: Int = 0,
 ) {
     val profile = StudentCatalog[studentId]
     BoxWithConstraints(modifier) {
@@ -83,6 +85,8 @@ fun StudentAtDesk(
                 hopTick = hopTick,
                 nodTick = nodTick,
                 asleep = asleep,
+                noticeTick = noticeTick,
+                callTick = callTick,
                 modifier = Modifier.fillMaxWidth(FIGURE_SHARE).align(Alignment.TopCenter),
             )
             Box(

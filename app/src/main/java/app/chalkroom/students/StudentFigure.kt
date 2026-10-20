@@ -67,7 +67,9 @@ private const val LAST_MOTE_SCALE = 1.25f
  * of [hopTick] is a small bounce: the classroom's ambient life uses both. Each bump of [nodTick]
  * is a small nod (the same one a tap gives, without looking up). While [asleep] the eyes are shut,
  * the head droops and the breathing is slower and deeper; waking opens the eyes, blinks, stretches
- * and looks up at you for a beat.
+ * and looks up at you for a beat. Each bump of [noticeTick] turns them to look at you for a beat;
+ * each bump of [callTick] is an eager little hop and lean toward you with a look (a paused lesson
+ * calling). Neither plays with animations removed.
  */
 @Composable
 fun StudentFigure(
@@ -83,6 +85,8 @@ fun StudentFigure(
     hopTick: Int = 0,
     nodTick: Int = 0,
     asleep: Boolean = false,
+    noticeTick: Int = 0,
+    callTick: Int = 0,
 ) {
     val profile = StudentCatalog[studentId]
     val colors = Chalkroom.colors
@@ -133,6 +137,29 @@ fun StudentFigure(
         if (hopTick == 0) return@LaunchedEffect
         hop.animateTo(1f, tween(150, easing = Dart))
         hop.animateTo(0f, settle())
+    }
+    // Noticing you: the head comes round and up a little and the eyes widen, a beat, then back.
+    val perk = remember { Animatable(0f) }
+    LaunchedEffect(noticeTick) {
+        if (noticeTick == 0 || reduced) return@LaunchedEffect
+        launch { perk.animateTo(1f, tween(260, easing = Dart)) }
+        attend.animateTo(1f, tween(240, easing = Dart))
+        delay(600)
+        launch { perk.animateTo(0f, tween(520, easing = EaseInOutSine)) }
+        attend.animateTo(0f, tween(500, easing = EaseInOutSine))
+    }
+    val lean = remember { Animatable(0f) }
+    LaunchedEffect(callTick) {
+        if (callTick == 0 || reduced) return@LaunchedEffect
+        launch {
+            hop.animateTo(1f, tween(150, easing = Dart))
+            hop.animateTo(0f, settle())
+        }
+        launch { attend.animateTo(1f, tween(220, easing = Dart)) }
+        lean.animateTo(1f, tween(260, easing = Dart))
+        delay(520)
+        launch { attend.animateTo(0f, tween(500, easing = EaseInOutSine)) }
+        lean.animateTo(0f, settle())
     }
     LaunchedEffect(nodTick) {
         if (nodTick == 0) return@LaunchedEffect
@@ -202,6 +229,9 @@ fun StudentFigure(
         val re = studentId.reaction(r)
         val z = sleep.value
         val st = wakeStretch.value
+        // Leaning in toward you: a touch bigger, as if closer.
+        val ln = 1f + 0.05f * lean.value
+        val pk = perk.value
 
         // Body: breathing fills it (taller, a touch narrower), the head tilts and follows the eyes late.
         // The bust runs past the bottom edge and is cropped there, so a tilt never lifts a corner.
@@ -209,9 +239,9 @@ fun StudentFigure(
         val sy = 1f + 0.02f * breath * (1f - z) + 0.04f * sleepBreath * z - 0.03f * z + stretch - 0.03f * nod.value + re.stretch + 0.025f * hop.value + 0.06f * st
         val headTurn = tilt + re.tilt + studentId.sleepTilt() * z + (glance.headX.value * (1f - lookW) + lookHead) * (1f - a) * 55f
         clipRect(bottom = h) { withTransform({
-            translate(top = (nod.value * 0.02f + re.lift - 0.05f * hop.value + 0.03f * z - 0.02f * st) * w)
+            translate(top = (nod.value * 0.02f + re.lift - 0.05f * hop.value + 0.03f * z - 0.02f * st - 0.03f * pk) * w)
             rotate(headTurn, Offset(w / 2, h))
-            scale(sx, sy, Offset(w / 2, h))
+            scale(sx * ln, sy * ln, Offset(w / 2, h))
         }) {
             drawBust(studentId, profile.color, colors, outline)
 
@@ -220,8 +250,8 @@ fun StudentFigure(
             val gy = (glance.eyeY.value * (1f - lookW) + lookY * lookW) * (1f - a) - 0.02f * a
             val dx = (eyeDx * (1f - a) + scan * scanWeight + gx + re.eyeDx) * w
             val dy = (eyeDy * (1f - a) + gy + re.eyeDy) * w
-            val ew = face.eyeW * w * eyeScale
-            val eh = face.eyeH * w * eyeScale
+            val ew = face.eyeW * w * eyeScale * (1f + 0.12f * pk)
+            val eh = face.eyeH * w * eyeScale * (1f + 0.12f * pk)
             // Asleep, the eyes are shut to a level line, like the bottom of a blink.
             val open = 1f - maxOf(blink, z, wakeBlink.value) * 0.9f
             listOf(-1, 1).forEach { side ->

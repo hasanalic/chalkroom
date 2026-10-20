@@ -14,7 +14,11 @@ object ClassroomContract {
         val board: Board? = null,
         val learned: Learned? = null,
         val seats: List<Seat> = StudentId.entries.map { Seat(it) },
+        val bubble: Bubble? = null,
     )
+
+    /** One short line a tapped student says; [serial] tells a new bubble from the last one. */
+    data class Bubble(val studentId: StudentId, val text: String, val serial: Int)
 
     data class Board(val studentId: StudentId, val name: String, val remaining: Int)
 

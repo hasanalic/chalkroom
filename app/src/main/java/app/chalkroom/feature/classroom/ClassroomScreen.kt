@@ -1,6 +1,25 @@
 package app.chalkroom.feature.classroom
 
 import androidx.compose.animation.core.Animatable
+import android.os.SystemClock
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.PathOperation
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
+import kotlinx.coroutines.flow.first
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -137,6 +156,18 @@ private object Entrance {
 }
 
 /**
+ * When the students last turned to look at whoever walked in (elapsed realtime), across visits, so
+ * quick back-and-forth doesn't repeat it. The lights-off wake-up counts as one.
+ */
+private object Notice {
+    var lastAt = Long.MIN_VALUE / 2
+}
+
+private const val NOTICE_GAP_MS = 120L
+private const val NOTICE_AGAIN_MS = 20_000L
+private val noticeOrder = listOf(StudentId.MIRA, StudentId.JUNO, StudentId.PIP)
+
+/**
  * [flicks] counts taps on the switch with the lights already on; each plays one quick flicker.
  */
 @Composable
@@ -177,6 +208,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
             warm.animateTo(1f, tween(450))
             warm.animateTo(0f, tween(1_100, easing = EaseInOutSine))
         }
+        Notice.lastAt = SystemClock.elapsedRealtime()
         delay(650)
         wakeOrder.forEach {
             awake = awake + it
@@ -205,6 +237,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
 
     val life = rememberRoomLife(enabled = !reduced && settled)
 
+
     // Entering: board, then desks, then motes. Not after the dark: the room is already there.
     if (darkAtOpen) Entrance.played = true
     val stagger = remember { !Entrance.played && !reduced }
@@ -224,6 +257,51 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
         motesShown = true
     }
 
+    // In view: this screen's lifecycle is started (back from a lesson, the app in the foreground).
+    val inView by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+    val visible = inView.isAtLeast(Lifecycle.State.STARTED)
+    val lightsOn by rememberUpdatedState(state.lightsOn)
+
+    // Walking in: all three turn to look at you, a little apart, then back to their idle.
+    var noticeTicks by remember { mutableStateOf(StudentId.entries.associateWith { 0 }) }
+    LaunchedEffect(visible) {
+        if (!visible || reduced || !lightsOn) return@LaunchedEffect
+        val now = SystemClock.elapsedRealtime()
+        if (now - Notice.lastAt < NOTICE_AGAIN_MS) return@LaunchedEffect
+        Notice.lastAt = now
+        delay(if (stagger) 900 else 250)
+        life.quiet = true
+        try {
+            noticeOrder.forEach {
+                noticeTicks = noticeTicks + (it to noticeTicks.getValue(it) + 1)
+                delay(NOTICE_GAP_MS)
+            }
+            delay(1_300)
+        } finally {
+            life.quiet = false
+        }
+    }
+
+    // A paused lesson calls: every 8–12 s its student hops and leans toward you, while the room is
+    // otherwise still, until you tap the board or them.
+    val caller = state.board?.studentId
+    var calling by remember(caller) { mutableStateOf(caller != null) }
+    var callTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(caller, calling, visible, settled) {
+        if (caller == null || !calling || !visible || !settled || reduced) return@LaunchedEffect
+        while (true) {
+            delay(Random.nextLong(8_000, 12_000))
+            snapshotFlow { life.busy || life.quiet }.first { !it }
+            life.quiet = true
+            try {
+                callTick++
+                delay(CALL_MS)
+            } finally {
+                life.quiet = false
+            }
+        }
+    }
+
     BoxWithConstraints(Modifier.fillMaxSize().background(Chalkroom.colors.page)) {
         val w = maxWidth
         val h = maxHeight
@@ -236,7 +314,10 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
             board = state.board,
             learned = state.learned,
             reduced = reduced,
-            onTap = { onEvent(UiEvent.BoardTapped) },
+            onTap = {
+                calling = false
+                onEvent(UiEvent.BoardTapped)
+            },
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = top + 20.dp)
@@ -260,7 +341,12 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
                 asleep = id !in awake,
                 glanceAtSwitch = glancing,
                 doodleStrokes = if (id == StudentId.MIRA) life.doodles else 0,
-                onTap = { onEvent(UiEvent.StudentTapped(id)) },
+                noticeTick = noticeTicks.getValue(id),
+                callTick = if (id == caller) callTick else 0,
+                onTap = {
+                    if (id == caller) calling = false
+                    onEvent(UiEvent.StudentTapped(id))
+                },
                 modifier = Modifier
                     .offset(x = w * place.x, y = h * place.bottom - seatW * SEAT_ASPECT)
                     .width(seatW)
@@ -270,6 +356,22 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
                     },
             )
         }
+
+        SpeechBubble(
+            bubble = state.bubble,
+            reduced = reduced,
+            avoid = { id ->
+                buildList {
+                    // The board (its chalk lines) and every other student's face.
+                    add(Rect(Offset((w * 0.18f).toPx(), (top + 20.dp).toPx()), Size((w * 0.64f).toPx(), (h * 0.275f).toPx())))
+                    StudentId.entries.filter { it != id }.forEach { add(faceRect(it, w.toPx(), h.toPx())) }
+                }
+            },
+            anchor = { id -> faceRect(id, w.toPx(), h.toPx()) },
+            safeTop = { top.toPx() },
+            safeBottom = { bottom.toPx() },
+            modifier = Modifier.fillMaxSize(),
+        )
 
         // The night: a deep navy wash over the room (it takes taps while the lights are off), and a
         // warm flush as they come on. A later flicker is one quick soft dip.
@@ -323,6 +425,108 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
 }
 
 private const val WAKE_GAP_MS = 260L
+private const val CALL_MS = 1_400L
+
+/** Where [id]'s head and face sit on screen, in px: top of the head down to the desk top. */
+private fun faceRect(id: StudentId, w: Float, h: Float): Rect {
+    val place = places.getValue(id)
+    val seatW = w * place.width
+    val seatTop = h * place.bottom - seatW * SEAT_ASPECT
+    return Rect(w * place.x + seatW * 0.15f, seatTop + seatW * 0.27f, w * place.x + seatW * 0.85f, seatTop + seatW * 0.86f)
+}
+
+/**
+ * The tapped student's line in a speech bubble, cream with an ink outline and a tail toward them.
+ * It goes above their head, or else beside them, wherever it stays fully on screen and clear of
+ * [avoid] (the board, the other faces). It fades in and out; with animations removed it just
+ * appears and goes. One at a time: a new line replaces the last.
+ */
+@Composable
+private fun SpeechBubble(
+    bubble: ClassroomContract.Bubble?,
+    reduced: Boolean,
+    avoid: Density.(StudentId) -> List<Rect>,
+    anchor: Density.(StudentId) -> Rect,
+    safeTop: Density.() -> Float,
+    safeBottom: Density.() -> Float,
+    modifier: Modifier = Modifier,
+) {
+    val colors = Chalkroom.colors
+    val style = Chalkroom.type.label.copy(color = colors.ink, fontSize = 15.sp, lineHeight = 19.sp, textAlign = TextAlign.Center, lineBreak = LineBreak.Heading)
+    val measurer = rememberTextMeasurer()
+    var shown by remember { mutableStateOf(bubble) }
+    val alpha = remember { Animatable(if (bubble != null) 1f else 0f) }
+    LaunchedEffect(bubble) {
+        if (bubble != null) {
+            shown = bubble
+            if (reduced) alpha.snapTo(1f) else {
+                alpha.snapTo(0f)
+                alpha.animateTo(1f, tween(160))
+            }
+        } else {
+            if (reduced) alpha.snapTo(0f) else alpha.animateTo(0f, tween(320, easing = EaseInOutSine))
+            shown = null
+        }
+    }
+    val b = shown ?: return
+    val name = StudentCatalog[b.studentId].name
+    Canvas(
+        modifier
+            .graphicsLayer {
+                this.alpha = alpha.value
+                translationY = if (reduced) 0f else 4.dp.toPx() * (1f - alpha.value)
+            }
+            .semantics { contentDescription = "$name says: ${b.text}"; liveRegion = LiveRegionMode.Polite },
+    ) {
+        val dp = density
+        val margin = 10f * dp
+        val tail = 10f * dp
+        val text = measurer.measure(b.text, style, constraints = Constraints(maxWidth = (190f * dp).toInt()))
+        val body = Size(text.size.width + 28f * dp, text.size.height + 16f * dp)
+        val head = anchor(b.studentId)
+        val blocked = avoid(b.studentId)
+        val screen = Rect(margin, safeTop() + margin, size.width - margin, size.height - safeBottom() - margin)
+        fun fits(r: Rect) = r.left >= screen.left && r.right <= screen.right && r.top >= screen.top && r.bottom <= screen.bottom &&
+            blocked.none { it.overlaps(r) }
+
+        // Above the head, tail down; else to the right or left of the face, tail sideways.
+        val aboveLeft = (head.center.x - body.width / 2).coerceIn(screen.left, screen.right - body.width)
+        val above = Rect(Offset(aboveLeft, head.top - 2f * dp - tail - body.height), body)
+        val right = Rect(Offset(head.right + tail, head.center.y - body.height / 2), body)
+        val left = Rect(Offset(head.left - tail - body.width, head.center.y - body.height / 2), body)
+        val (r, side) = listOf(above to 0, right to 1, left to -1).firstOrNull { fits(it.first) } ?: (above to 0)
+
+        val shape = Path().apply {
+            addRoundRect(RoundRect(r, CornerRadius(14f * dp)))
+            val tip = Path().apply {
+                when (side) {
+                    0 -> {
+                        val x = head.center.x.coerceIn(r.left + 20f * dp, r.right - 20f * dp)
+                        moveTo(x - 8f * dp, r.bottom - 1f * dp)
+                        lineTo(x + 2f * dp, r.bottom + tail)
+                        lineTo(x + 6f * dp, r.bottom - 1f * dp)
+                    }
+                    1 -> {
+                        moveTo(r.left + 1f * dp, r.center.y - 7f * dp)
+                        lineTo(r.left - tail, r.center.y + 2f * dp)
+                        lineTo(r.left + 1f * dp, r.center.y + 6f * dp)
+                    }
+                    else -> {
+                        moveTo(r.right - 1f * dp, r.center.y - 7f * dp)
+                        lineTo(r.right + tail, r.center.y + 2f * dp)
+                        lineTo(r.right - 1f * dp, r.center.y + 6f * dp)
+                    }
+                }
+                close()
+            }
+            op(this, tip, PathOperation.Union)
+        }
+        translate(2f * dp, 3f * dp) { drawPath(shape, colors.ink.copy(alpha = 0.14f)) }
+        drawPath(shape, colors.card)
+        drawPath(shape, colors.ink, style = Stroke(2f * dp, join = StrokeJoin.Round))
+        drawText(text, topLeft = Offset(r.left + 14f * dp, r.top + 8f * dp))
+    }
+}
 private const val SWITCH_SCALE = 1.4f
 private const val BUTTON_AT_MS = 2_500L
 
@@ -525,6 +729,8 @@ private fun Seat(
     modifier: Modifier = Modifier,
     asleep: Boolean = false,
     glanceAtSwitch: Boolean = false,
+    noticeTick: Int = 0,
+    callTick: Int = 0,
 ) {
     val kind = life?.kind
     val propMotion by animateFloatAsState(
@@ -542,6 +748,8 @@ private fun Seat(
         propMotion = propMotion,
         doodleStrokes = doodleStrokes,
         asleep = asleep,
+        noticeTick = noticeTick,
+        callTick = callTick,
         modifier = modifier.clickable(
             interactionSource = remember { MutableInteractionSource() },
             indication = null,
@@ -582,6 +790,7 @@ private fun rememberRoomLife(enabled: Boolean): RoomLifeState {
         var last: LifeKind? = null
         while (true) {
             delay(Random.nextLong(12_000, 20_000))
+            snapshotFlow { state.quiet }.first { !it }
             val kind = lifeBag.filter { it != last }.random()
             last = kind
             state.start(kind)
@@ -599,6 +808,11 @@ private class RoomLifeState {
     private var ticks by mutableIntStateOf(0)
     var doodles by mutableIntStateOf(0)
         private set
+
+    /** Someone else is moving (walking in, a lesson calling): hold off until they're done. */
+    var quiet by mutableStateOf(false)
+
+    val busy: Boolean get() = current != null
 
     fun start(kind: LifeKind) {
         ticks++
