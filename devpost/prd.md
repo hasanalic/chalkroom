@@ -84,7 +84,7 @@ Source: `scope.md > The Unique Kernel`.
 |---|---|---|
 | **Mira** | curious, plain | Simple omissions: leaves out a key step or condition. |
 | **Pip** | fast, careless | Confuses similar things. |
-| **Juno** | calm, questioning | Reverses cause and effect. |
+| **Juno** | calm, questioning | Picks the wrong cause: takes a side effect for the cause, credits the wrong thing, or links two things that only happen together. Never "the result causes the cause". |
 
 - [ ] Given the same notes, Mira, Pip and Juno produce different misconceptions, and each one visibly follows that student's flaw.
 - [ ] Each student's self-introduction is a fixed line describing their own flaw in their own voice.

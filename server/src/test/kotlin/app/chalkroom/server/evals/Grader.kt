@@ -17,7 +17,7 @@ data class ReplyGrade(
     val reason: String,
 )
 
-enum class Flaw { OMISSION, CONFUSION, REVERSAL, OTHER }
+enum class Flaw { OMISSION, CONFUSION, CAUSE, OTHER }
 
 @Serializable
 data class BeliefGrade(
@@ -142,7 +142,7 @@ object Grader {
                     For each belief (by index), decide which ONE thinking flaw it is an instance of:
                     - OMISSION: keeps the main idea but leaves out a key step, condition, or requirement (an oversimplified rule). Dropping a condition so the rule over-generalizes (\"always\", \"whenever\", \"just\", \"even at night\") is OMISSION.
                     - CONFUSION: swaps two similar terms, structures, processes, or quantities from the notes, pinning what is true of one on the other.
-                    - REVERSAL: gets the direction of a cause-and-effect or because/so relationship from the notes backwards (the notes say A, so B; the belief says B causes A).
+                    - CAUSE: credits the wrong cause for an effect in the notes: takes a side effect of the real cause for the cause, picks another fact from the notes as the cause, or thinks one thing makes another happen when the notes only say they happen together.
                     - OTHER: none of these clearly, or not actually wrong.
                     Also: namesSwappedInThing = true only if the belief explicitly names the wrong thing it put in place of the right one (e.g. it says "atria" where the notes' fact is about ventricles), so the swap is identifiable. The correct counterpart does not have to be named.
                     fromNotes = true if the belief is about content that appears in the notes.

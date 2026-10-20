@@ -29,7 +29,7 @@ class FlawShapingEval {
     private val expected = mapOf(
         StudentId.MIRA to Flaw.OMISSION,
         StudentId.PIP to Flaw.CONFUSION,
-        StudentId.JUNO to Flaw.REVERSAL,
+        StudentId.JUNO to Flaw.CAUSE,
     )
 
     @Test

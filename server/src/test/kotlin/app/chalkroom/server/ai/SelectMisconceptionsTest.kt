@@ -16,25 +16,31 @@ class SelectMisconceptionsTest {
 
     @Test
     fun `tops up with other items in original order when the filter leaves fewer than three`() {
-        val items = listOf(m(ThinkingFlaw.CONFUSION, 1), m(ThinkingFlaw.OMISSION, 2), m(ThinkingFlaw.REVERSAL, 3), m(ThinkingFlaw.CONFUSION, 4))
+        val items = listOf(m(ThinkingFlaw.CONFUSION, 1), m(ThinkingFlaw.OMISSION, 2), m(ThinkingFlaw.CAUSE, 3), m(ThinkingFlaw.CONFUSION, 4))
         assertEquals(listOf("s1", "s2", "s3"), selectMisconceptions(items, ThinkingFlaw.OMISSION).map { it.statement })
     }
 
     @Test
     fun `never returns an empty deck just because no item matched the flaw`() {
-        val items = listOf(m(ThinkingFlaw.CONFUSION, 1), m(ThinkingFlaw.REVERSAL, 2), m(ThinkingFlaw.CONFUSION, 3))
+        val items = listOf(m(ThinkingFlaw.CONFUSION, 1), m(ThinkingFlaw.CAUSE, 2), m(ThinkingFlaw.CONFUSION, 3))
         assertEquals(3, selectMisconceptions(items, ThinkingFlaw.OMISSION).size)
     }
 
     @Test
     fun `cannot exceed what the model returned and keeps an empty deck empty`() {
-        assertEquals(2, selectMisconceptions(listOf(m(ThinkingFlaw.CONFUSION, 1), m(ThinkingFlaw.REVERSAL, 2)), ThinkingFlaw.OMISSION).size)
+        assertEquals(2, selectMisconceptions(listOf(m(ThinkingFlaw.CONFUSION, 1), m(ThinkingFlaw.CAUSE, 2)), ThinkingFlaw.OMISSION).size)
         assertEquals(0, selectMisconceptions(emptyList(), ThinkingFlaw.OMISSION).size)
     }
 
     @Test
     fun `keeps the first three own-flaw items out of five candidates and drops blank ones`() {
-        val items = listOf(GeneratedMisconception("REVERSAL", " ", "r")) + (1..5).map { m(ThinkingFlaw.REVERSAL, it) }
-        assertEquals(listOf("s1", "s2", "s3"), selectMisconceptions(items, ThinkingFlaw.REVERSAL).map { it.statement })
+        val items = listOf(GeneratedMisconception("CAUSE", " ", "r")) + (1..5).map { m(ThinkingFlaw.CAUSE, it) }
+        assertEquals(listOf("s1", "s2", "s3"), selectMisconceptions(items, ThinkingFlaw.CAUSE).map { it.statement })
+    }
+
+    @Test
+    fun `never uses a belief labeled REVERSED, not even to top up`() {
+        val items = listOf(m(ThinkingFlaw.CAUSE, 1), m(ThinkingFlaw.REVERSED, 2), m(ThinkingFlaw.OMISSION, 3))
+        assertEquals(listOf("s1", "s3"), selectMisconceptions(items, ThinkingFlaw.CAUSE).map { it.statement })
     }
 }

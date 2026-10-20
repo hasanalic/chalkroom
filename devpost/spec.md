@@ -183,7 +183,7 @@ One `TURN_MODEL` call with a JSON `responseSchema` `{addressed: boolean, reply: 
 `StudentPrompts.kt` holds the shared rules block plus three persona/flaw blocks:
 - **Mira** (curious, plain): omits a key step or condition.
 - **Pip** (fast, careless): confuses similar things.
-- **Juno** (calm, questioning): reverses cause and effect.
+- **Juno** (calm, questioning): picks the wrong cause (a side effect taken for the cause, the wrong cause, or two things that only happen together); never the result as its own cause.
 
 Kept stable and placed first in the prompt, so implicit caching can help. Treat it as a bonus, not a requirement.
 

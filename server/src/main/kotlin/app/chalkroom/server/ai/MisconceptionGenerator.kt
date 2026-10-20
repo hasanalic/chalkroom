@@ -6,14 +6,17 @@ import com.google.genai.types.Schema
 import com.google.genai.types.Type
 import kotlinx.serialization.Serializable
 
-/** The three thinking flaws; each student has exactly one. */
-enum class ThinkingFlaw { OMISSION, CONFUSION, REVERSAL }
+/**
+ * The three thinking flaws; each student has exactly one. [REVERSED] (an effect named as its own cause) belongs
+ * to no student: it is only a label the model can give such a belief so that it is never used.
+ */
+enum class ThinkingFlaw { OMISSION, CONFUSION, CAUSE, REVERSED }
 
 val StudentId.flaw: ThinkingFlaw
     get() = when (this) {
         StudentId.MIRA -> ThinkingFlaw.OMISSION
         StudentId.PIP -> ThinkingFlaw.CONFUSION
-        StudentId.JUNO -> ThinkingFlaw.REVERSAL
+        StudentId.JUNO -> ThinkingFlaw.CAUSE
     }
 
 /** [flaw] is the model's own label, generated before the statement; items that don't match the student's flaw are dropped. */
@@ -66,7 +69,7 @@ class MisconceptionGenerator(private val gemini: GeminiClient, private val setti
 
         Instructions:
         - Every misconception must come only from these notes, and every single one must be an instance of YOUR thinking flaw
-          and of no other flaw. Someone who knows only the three flaws (omission, confusing similar things, reversed cause and effect)
+          and of no other flaw. Someone who knows only the three flaws (omission, confusing similar things, wrong cause)
           must be able to tell from the belief alone that it is yours. If an idea in the notes cannot be misread through
           your flaw, skip it rather than misreading it another way.
         - Each one is a single specific, believable wrong belief, said in the first person in your voice
@@ -75,10 +78,14 @@ class MisconceptionGenerator(private val gemini: GeminiClient, private val setti
           it gets wrong. A true statement that merely leaves details out is not a misconception; never write one.
         - Write $CANDIDATES candidates, best first. Each must be about a DIFFERENT fact in the notes: two beliefs that get the
           same fact wrong are duplicates, even when worded differently (for example two beliefs that both forget that light is
-          needed). Never write duplicates; if the notes run out of distinct facts, write fewer good ones rather than repeat one.
+          needed). For cause-and-effect beliefs, two beliefs that get the same link wrong (in either direction, or once for each
+          hemisphere, season or case) are duplicates too. Never write duplicates; if the notes run out of distinct facts,
+          write fewer good ones rather than repeat one.
         - "nothingToLearn": true only if the text has no factual or conceptual content to learn at all (then the candidates are ignored).
         - For each, first set "flaw" to the one flaw the belief is an instance of: OMISSION (leaves out a key step or condition),
-          CONFUSION (swaps two similar things), or REVERSAL (reverses a stated cause and effect). Label honestly:
+          CONFUSION (swaps two similar things), or CAUSE (credits the wrong cause: a side effect, another fact from the notes,
+          or something that only happens alongside it), or REVERSED (names an effect from the notes as the cause of its own
+          cause, e.g. "summer makes the axis tilt"; REVERSED beliefs are always thrown away). Label honestly:
           only beliefs labeled ${flaw.name} are kept, so if a belief is really another flaw, label it that way.
         - For each, write a "refutation": what is actually true according to the notes, in one or two plain sentences.
           It is hidden from the student and only used to judge explanations.
@@ -98,10 +105,12 @@ class MisconceptionGenerator(private val gemini: GeminiClient, private val setti
 
         /**
          * Keeps the first [DECK_SIZE] items labeled with the student's own flaw, then fills from the other
-         * items (best-effort flaw shaping beats a thin deck). Original order is kept.
+         * items (best-effort flaw shaping beats a thin deck), never [ThinkingFlaw.REVERSED] ones. Original order is kept.
          */
         fun selectMisconceptions(items: List<GeneratedMisconception>, flaw: ThinkingFlaw): List<GeneratedMisconception> {
-            val usable = items.filter { it.statement.isNotBlank() && it.refutation.isNotBlank() }
+            val usable = items.filter {
+                it.statement.isNotBlank() && it.refutation.isNotBlank() && !it.flaw.equals(ThinkingFlaw.REVERSED.name, ignoreCase = true)
+            }
             val (own, other) = usable.partition { it.flaw.equals(flaw.name, ignoreCase = true) }
             val chosen = (own + other).take(DECK_SIZE)
             return usable.filter { it in chosen }
