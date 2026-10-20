@@ -69,7 +69,10 @@ private const val LAST_MOTE_SCALE = 1.25f
  * the head droops and the breathing is slower and deeper; waking opens the eyes, blinks, stretches
  * and looks up at you for a beat. Each bump of [noticeTick] turns them to look at you for a beat;
  * each bump of [callTick] is an eager little hop and lean toward you with a look (a paused lesson
- * calling). Neither plays with animations removed.
+ * calling). Neither plays with animations removed. Falling [asleep] after the start dozes off
+ * gradually; with [startle] the wake-up is a small jolt with wide eyes and a look at you instead of
+ * the stretch. [headX] turns the head on its own while the eyes follow [lookAt] (reading); each bump
+ * of [slowNodTick] is one slow nod, and while [proud] the student sits up with smiling eyes.
  */
 @Composable
 fun StudentFigure(
@@ -87,6 +90,10 @@ fun StudentFigure(
     asleep: Boolean = false,
     noticeTick: Int = 0,
     callTick: Int = 0,
+    startle: Boolean = false,
+    headX: Float? = null,
+    slowNodTick: Int = 0,
+    proud: Boolean = false,
 ) {
     val profile = StudentCatalog[studentId]
     val colors = Chalkroom.colors
@@ -108,10 +115,30 @@ fun StudentFigure(
     val sleepBreath by rememberSleepBreath(studentId, still = reduced || (!asleep && sleep.value == 0f))
     val wakeBlink = remember { Animatable(0f) }
     val wakeStretch = remember { Animatable(0f) }
+    val jolt = remember { Animatable(0f) }
+    val wide = remember { Animatable(0f) }
     LaunchedEffect(asleep) {
-        if (asleep) return@LaunchedEffect sleep.snapTo(1f)
+        if (asleep) {
+            // Dozing off: lids drop and the head droops over a moment. Asleep from the start: already there.
+            if (reduced) sleep.snapTo(1f) else sleep.animateTo(1f, tween(DOZE_MS, easing = EaseInOutSine))
+            return@LaunchedEffect
+        }
         if (sleep.value == 0f) return@LaunchedEffect
         if (reduced) return@LaunchedEffect sleep.snapTo(0f)
+        if (startle) {
+            // Startled awake: eyes snap open and wide, a little jolt up, a look at you, then back.
+            launch { sleep.animateTo(0f, tween(110, easing = Dart)) }
+            launch {
+                jolt.animateTo(1f, tween(90, easing = Dart))
+                jolt.animateTo(0f, settle())
+            }
+            launch { wide.animateTo(1f, tween(140, easing = Dart)) }
+            attend.animateTo(1f, tween(160, easing = Dart))
+            delay(650)
+            launch { wide.animateTo(0f, tween(500, easing = EaseInOutSine)) }
+            attend.animateTo(0f, tween(500, easing = EaseInOutSine))
+            return@LaunchedEffect
+        }
         sleep.animateTo(0f, tween(320, easing = EaseOutCubic))
         delay(140)
         wakeBlink.animateTo(1f, tween(70))
@@ -161,6 +188,12 @@ fun StudentFigure(
         launch { attend.animateTo(0f, tween(500, easing = EaseInOutSine)) }
         lean.animateTo(0f, settle())
     }
+    LaunchedEffect(slowNodTick) {
+        if (slowNodTick == 0 || reduced) return@LaunchedEffect
+        nod.animateTo(1f, tween(420, easing = EaseInOutSine))
+        nod.animateTo(0f, tween(520, easing = EaseInOutSine))
+    }
+    val pride by animateFloatAsState(if (proud && !reduced) 1f else 0f, tween(if (proud) 420 else 600, easing = EaseInOutSine), label = "pride")
     LaunchedEffect(nodTick) {
         if (nodTick == 0) return@LaunchedEffect
         nod.animateTo(1f, tween(170))
@@ -169,7 +202,7 @@ fun StudentFigure(
     val lookW by animateFloatAsState(if (lookAt != null) 1f else 0f, tween(260, easing = Dart), label = "lookW")
     val lookX by animateFloatAsState(lookAt?.x ?: 0f, tween(260, easing = Dart), label = "lookX")
     val lookY by animateFloatAsState(lookAt?.y ?: 0f, tween(260, easing = Dart), label = "lookY")
-    val lookHead by animateFloatAsState(lookAt?.x ?: 0f, tween(560, delayMillis = 130, easing = EaseInOutSine), label = "lookHead")
+    val lookHead by animateFloatAsState(headX ?: lookAt?.x ?: 0f, tween(560, delayMillis = 130, easing = EaseInOutSine), label = "lookHead")
 
     val t = expression.targets()
     val readingDy = if (look == Look.READING) 0.045f else 0f
@@ -232,14 +265,16 @@ fun StudentFigure(
         // Leaning in toward you: a touch bigger, as if closer.
         val ln = 1f + 0.05f * lean.value
         val pk = perk.value
+        val jt = jolt.value
+        val pr = pride
 
         // Body: breathing fills it (taller, a touch narrower), the head tilts and follows the eyes late.
         // The bust runs past the bottom edge and is cropped there, so a tilt never lifts a corner.
         val sx = 1f - 0.006f * breath * (1f - z) - 0.012f * sleepBreath * z - 0.01f * nod.value - 0.015f * st
-        val sy = 1f + 0.02f * breath * (1f - z) + 0.04f * sleepBreath * z - 0.03f * z + stretch - 0.03f * nod.value + re.stretch + 0.025f * hop.value + 0.06f * st
+        val sy = 1f + 0.02f * breath * (1f - z) + 0.04f * sleepBreath * z - 0.03f * z + stretch - 0.03f * nod.value + re.stretch + 0.025f * hop.value + 0.06f * st + 0.03f * jt + 0.035f * pr
         val headTurn = tilt + re.tilt + studentId.sleepTilt() * z + (glance.headX.value * (1f - lookW) + lookHead) * (1f - a) * 55f
         clipRect(bottom = h) { withTransform({
-            translate(top = (nod.value * 0.02f + re.lift - 0.05f * hop.value + 0.03f * z - 0.02f * st - 0.03f * pk) * w)
+            translate(top = (nod.value * 0.02f + re.lift - 0.05f * hop.value + 0.03f * z - 0.02f * st - 0.03f * pk - 0.05f * jt - 0.02f * pr) * w)
             rotate(headTurn, Offset(w / 2, h))
             scale(sx * ln, sy * ln, Offset(w / 2, h))
         }) {
@@ -250,8 +285,8 @@ fun StudentFigure(
             val gy = (glance.eyeY.value * (1f - lookW) + lookY * lookW) * (1f - a) - 0.02f * a
             val dx = (eyeDx * (1f - a) + scan * scanWeight + gx + re.eyeDx) * w
             val dy = (eyeDy * (1f - a) + gy + re.eyeDy) * w
-            val ew = face.eyeW * w * eyeScale * (1f + 0.12f * pk)
-            val eh = face.eyeH * w * eyeScale * (1f + 0.12f * pk)
+            val ew = face.eyeW * w * eyeScale * (1f + 0.12f * pk + 0.22f * wide.value)
+            val eh = face.eyeH * w * eyeScale * (1f + 0.12f * pk + 0.22f * wide.value)
             // Asleep, the eyes are shut to a level line, like the bottom of a blink.
             val open = 1f - maxOf(blink, z, wakeBlink.value) * 0.9f
             listOf(-1, 1).forEach { side ->
@@ -283,7 +318,7 @@ fun StudentFigure(
                 // A content eye smiles from below: an upward arc cuts the bottom away (◠), unlined.
                 val bottom = top + eyeH
                 // The arc spans just past the eye's width, so it curves even on Pip's and Juno's narrow eyes.
-                val cut = smile * eyeH * 0.6f
+                val cut = (smile + 0.8f * pr).coerceAtMost(1f) * eyeH * 0.6f
                 val span = ew * 0.62f
                 val aboveSmile = Path().apply {
                     moveTo(center.x - ew, top - eyeH)
@@ -342,6 +377,9 @@ fun StudentFigure(
         }
     }
 }
+
+/** How long dozing off takes, lids and head together. */
+const val DOZE_MS = 900
 
 /** Asleep, each head droops its own way, a few degrees. */
 private fun StudentId.sleepTilt(): Float = when (this) {

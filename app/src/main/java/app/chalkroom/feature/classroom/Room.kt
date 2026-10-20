@@ -24,6 +24,11 @@ import kotlin.math.sin
 /** Where the wall meets the floor, as a share of the screen height. */
 const val WALL_SHARE = 0.38f
 
+/** The bin in the corner: its centre x and width as shares of the screen width, its bottom of the height. */
+const val BIN_X = 0.96f
+const val BIN_W = 0.12f
+const val BIN_BOTTOM = WALL_SHARE + 0.05f
+
 /** Where the floor has faded into the page under the button. */
 private const val FADE_FROM = 0.82f
 private const val FADE_TO = 0.93f
@@ -57,7 +62,7 @@ fun Room(modifier: Modifier = Modifier) {
         drawClock(colors, Offset(w * 0.95f, h * 0.115f), w * 0.085f)
         drawNote(colors, colors.lavender, Offset(w * 0.875f, h * 0.215f), w * 0.09f, -6f)
         drawNote(colors, Color(0xFFFFE9A8), Offset(w * 0.955f, h * 0.255f), w * 0.09f, 8f)
-        drawBin(colors, Offset(w * 0.96f, wallBottom + h * 0.05f), w * 0.12f)
+        drawBin(colors, Offset(w * BIN_X, h * BIN_BOTTOM), w * BIN_W)
 
         // The floor fades into the page under the button, so room and UI are one surface.
         drawRect(
@@ -213,7 +218,8 @@ private fun DrawScope.drawBin(c: ChalkroomColors, bottomCenter: Offset, bw: Floa
     drawBall(c, Offset(bottomCenter.x - bw * 0.85f, bottomCenter.y - bw * 0.07f), bw * 0.14f)
 }
 
-private fun DrawScope.drawBall(c: ChalkroomColors, center: Offset, r: Float) {
+/** A crumpled paper ball; [spin] turns its creases (degrees). */
+fun DrawScope.drawBall(c: ChalkroomColors, center: Offset, r: Float, spin: Float = 0f) = rotate(spin, center) {
     val dp = density
     drawCircle(c.card, r, center)
     drawCircle(c.ink, r, center, style = Stroke(1.6f * dp))

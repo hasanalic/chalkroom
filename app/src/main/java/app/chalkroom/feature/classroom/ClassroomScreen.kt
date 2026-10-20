@@ -104,8 +104,11 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.ui.graphics.drawscope.clipRect
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -163,6 +166,11 @@ private object Notice {
     var lastAt = Long.MIN_VALUE / 2
 }
 
+/** The last finished lesson's board the classmates have read, so each one is read once. */
+private object BoardRead {
+    var last: ClassroomContract.Learned? = null
+}
+
 private const val NOTICE_GAP_MS = 120L
 private const val NOTICE_AGAIN_MS = 20_000L
 private val noticeOrder = listOf(StudentId.MIRA, StudentId.JUNO, StudentId.PIP)
@@ -187,6 +195,9 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
     val buttonIn = remember { Animatable(if (darkAtOpen) 0f else 1f) }
     var settled by remember { mutableStateOf(!darkAtOpen) }
     var glancing by remember { mutableStateOf(false) }
+    // When Pip may next throw paper at the bin (elapsed realtime): a few seconds after the entering
+    // look, the board read or a wake-up. Dropped if it's too soon after the last throw.
+    var throwAt by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(state.lightsOn) {
         if (!state.lightsOn || dark.value == 0f) return@LaunchedEffect
         // ~600 ms warm-up with two soft dips, then the students wake one by one, then the button.
@@ -219,6 +230,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
         buttonIn.animateTo(1f, settle())
         delay(1_000)
         settled = true
+        throwAt = SystemClock.elapsedRealtime() + THROW_AFTER_MS
     }
     LaunchedEffect(flicks) {
         if (flicks == 0 || reduced) return@LaunchedEffect
@@ -269,9 +281,9 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
         val now = SystemClock.elapsedRealtime()
         if (now - Notice.lastAt < NOTICE_AGAIN_MS) return@LaunchedEffect
         Notice.lastAt = now
-        delay(if (stagger) 900 else 250)
         life.quiet = true
         try {
+            delay(if (stagger) 900 else 250)
             noticeOrder.forEach {
                 noticeTicks = noticeTicks + (it to noticeTicks.getValue(it) + 1)
                 delay(NOTICE_GAP_MS)
@@ -280,6 +292,8 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
         } finally {
             life.quiet = false
         }
+        life.touch()
+        throwAt = SystemClock.elapsedRealtime() + THROW_AFTER_MS
     }
 
     // A paused lesson calls: every 8–12 s its student hops and leans toward you, while the room is
@@ -302,13 +316,174 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
         }
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Chalkroom.colors.page)) {
+    // Classroom life, one thing at a time once the room is lit and settled: the classmates read a new
+    // board, Pip throws paper at the bin, and after 10 s of nothing the room dozes off.
+    val bubbleNow by rememberUpdatedState(state.bubble)
+    val learnedNow by rememberUpdatedState(state.learned)
+    val callerNow by rememberUpdatedState(caller)
+    var dozing by remember { mutableStateOf(emptySet<StudentId>()) }
+    var wakes by remember { mutableIntStateOf(0) }
+    var reading by remember { mutableStateOf(emptyMap<StudentId, Offset>()) }
+    var slowNods by remember { mutableStateOf(StudentId.entries.associateWith { 0 }) }
+    var proudId by remember { mutableStateOf<StudentId?>(null) }
+    var throwHops by remember { mutableIntStateOf(0) }
+    var pipWatching by remember { mutableStateOf(false) }
+    var flight by remember { mutableStateOf<Flight?>(null) }
+    var floorBalls by remember { mutableStateOf(PaperBin.session.onFloor) }
+    val scope = rememberCoroutineScope()
+
+    fun wake() {
+        if (dozing.isEmpty()) return
+        // Hold the floor while they jolt awake, then let Pip throw a little later.
+        life.quiet = true
+        dozing = emptySet()
+        wakes++
+        scope.launch {
+            try {
+                delay(WAKE_JOLT_MS)
+            } finally {
+                life.quiet = false
+                life.napping = false
+            }
+            life.touch()
+            throwAt = SystemClock.elapsedRealtime() + THROW_AFTER_MS
+        }
+    }
+
+    // Out of view, nobody stays asleep: coming back is a fresh visit.
+    LaunchedEffect(visible) {
+        if (!visible) {
+            dozing = emptySet()
+            life.napping = false
+        }
+    }
+    LaunchedEffect(state.bubble) { if (state.bubble == null) life.touch() }
+
+    LaunchedEffect(visible, settled, state.lightsOn) {
+        if (!visible || !settled || !state.lightsOn || reduced) return@LaunchedEffect
+        life.touch()
+        delay(400)
+        while (true) {
+            snapshotFlow { life.quiet || life.busy || bubbleNow != null || glancing || dozing.isNotEmpty() }.first { !it }
+            val now = SystemClock.elapsedRealtime()
+            val learned = learnedNow
+            val due = throwAt
+            when {
+                // B: the other two read what was just taught; the one who learned it sits up.
+                learned != null && learned != BoardRead.last -> {
+                    BoardRead.last = learned
+                    life.quiet = true
+                    try {
+                        val readers = noticeOrder.filter { it != learned.studentId }
+                        proudId = learned.studentId
+                        coroutineScope {
+                            readers.forEachIndexed { i, id ->
+                                launch {
+                                    val base = boardLook.getValue(id)
+                                    reading = reading + (id to base)
+                                    delay(READ_TURN_MS + i * 160L)
+                                    val lines = learned.lines.size.coerceIn(1, 4)
+                                    val fixation = READ_SCAN_MS / lines / 3
+                                    repeat(lines) { line ->
+                                        listOf(-1f, 0f, 1f).forEach { along ->
+                                            reading = reading + (id to base + Offset(along * 0.034f, line * 0.014f))
+                                            delay(fixation)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        val nodder = readers.random()
+                        slowNods = slowNods + (nodder to slowNods.getValue(nodder) + 1)
+                        delay(1_000)
+                        reading = emptyMap()
+                        proudId = null
+                        delay(400)
+                    } finally {
+                        reading = emptyMap()
+                        proudId = null
+                        life.quiet = false
+                    }
+                    life.touch()
+                    throwAt = SystemClock.elapsedRealtime() + THROW_AFTER_MS
+                }
+                // C: Pip and the bin.
+                due != null && now >= due -> {
+                    throwAt = null
+                    if (PaperBin.session.canThrow(now)) {
+                        val toss = PaperBin.session.toss(now)
+                        life.quiet = true
+                        try {
+                            pipWatching = true
+                            throwHops++
+                            delay(110)
+                            val f = Flight(toss)
+                            flight = f
+                            f.progress.animateTo(1f, tween(FLIGHT_MS, easing = LinearEasing))
+                            if (toss.goesIn) {
+                                flight = null
+                                delay(160)
+                                proudId = StudentId.PIP
+                                throwHops++
+                                delay(280)
+                                throwHops++
+                                delay(700)
+                                proudId = null
+                            } else {
+                                f.bounce.animateTo(1f, tween(300, easing = EaseOutCubic))
+                                PaperBin.session.landed(toss)
+                                floorBalls = PaperBin.session.onFloor
+                                flight = null
+                                delay(500)
+                            }
+                            delay(300)
+                        } finally {
+                            if (!toss.goesIn) {
+                                PaperBin.session.landed(toss)
+                                floorBalls = PaperBin.session.onFloor
+                            }
+                            flight = null
+                            pipWatching = false
+                            proudId = null
+                            life.quiet = false
+                        }
+                        life.touch()
+                    }
+                }
+                // A: nothing for a while, so everyone but a calling student dozes off, one by one.
+                now - life.lastActivityAt >= DOZE_AFTER_MS -> {
+                    val run = wakes
+                    life.napping = true
+                    for (id in noticeOrder.filter { it != callerNow }) {
+                        if (wakes != run) break
+                        dozing = dozing + id
+                        delay(DOZE_GAP_MS)
+                    }
+                }
+                else -> delay(200)
+            }
+        }
+    }
+
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .background(Chalkroom.colors.page)
+            // Any touch in the room counts as something happening, so nobody dozes off under your finger.
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    life.touch()
+                }
+            },
+    ) {
         val w = maxWidth
         val h = maxHeight
         val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
         Room(Modifier.fillMaxSize())
+        FloorBalls(floorBalls, Modifier.fillMaxSize())
 
         Board(
             board = state.board,
@@ -338,8 +513,14 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
             Seat(
                 seat = seat.copy(motes = if (motesShown && id in awake) seat.motes else emptyList()),
                 life = life.forStudent(id),
-                asleep = id !in awake,
+                asleep = id !in awake || id in dozing,
+                startle = settled,
                 glanceAtSwitch = glancing,
+                readAt = reading[id] ?: if (id == StudentId.PIP && pipWatching) towardBin else null,
+                headX = reading[id]?.let { boardLook.getValue(id).x * 2.5f },
+                slowNodTick = slowNods.getValue(id),
+                proud = id == proudId,
+                extraHops = if (id == StudentId.PIP) throwHops else 0,
                 doodleStrokes = if (id == StudentId.MIRA) life.doodles else 0,
                 noticeTick = noticeTicks.getValue(id),
                 callTick = if (id == caller) callTick else 0,
@@ -356,6 +537,8 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
                     },
             )
         }
+
+        flight?.let { PaperFlight(it, Modifier.fillMaxSize()) }
 
         SpeechBubble(
             bubble = state.bubble,
@@ -406,6 +589,20 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
                 .size(switchSize),
         )
 
+        // Dozing: the first tap anywhere only wakes them (the button above still works as usual).
+        if (dozing.isNotEmpty()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown().consume()
+                            wake()
+                        }
+                    },
+            )
+        }
+
         if (buttonShown) {
             PrimaryButton(
                 "Teach something",
@@ -425,6 +622,95 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
 }
 
 private const val WAKE_GAP_MS = 260L
+private const val DOZE_AFTER_MS = 10_000L
+private const val DOZE_GAP_MS = 600L
+private const val WAKE_JOLT_MS = 1_400L
+private const val READ_TURN_MS = 380L
+private const val READ_SCAN_MS = 1_500L
+private const val THROW_AFTER_MS = 3_000L
+private const val FLIGHT_MS = 950
+
+/** Where each student looks to read the board (fractions of the figure width), from their seat. */
+private val boardLook = mapOf(
+    StudentId.MIRA to Offset(0.03f, -0.055f),
+    // Juno's eyes stay a little lower, clear of her hat brim.
+    StudentId.JUNO to Offset(-0.03f, -0.04f),
+    StudentId.PIP to Offset(0f, -0.06f),
+)
+
+/** Pip watching the bin, up and to the right. */
+private val towardBin = Offset(0.05f, -0.045f)
+
+/** A paper ball in the air: [progress] 0 → 1 from Pip's desk to the bin or the floor, then [bounce] on landing. */
+private class Flight(val toss: PaperBin.Toss) {
+    val progress = Animatable(0f)
+    val bounce = Animatable(0f)
+}
+
+/** Where missed balls lie on the floor, beside the one already there: (x, y) in bin widths from the bin's bottom centre. */
+private val floorSpots = listOf(
+    Offset(-1.3f, 0.06f),
+    Offset(-0.5f, 0.2f),
+    Offset(-1.08f, 0.22f),
+    Offset(-1.7f, 0.1f),
+    Offset(-0.15f, 0.24f),
+)
+
+private fun floorSpot(i: Int, w: Float, h: Float): Pair<Offset, Float> {
+    val bw = w * BIN_W
+    val s = floorSpots[i]
+    // Nearer (lower) balls look a touch bigger.
+    return Offset(w * BIN_X + s.x * bw, h * BIN_BOTTOM - 0.07f * bw + s.y * bw) to bw * 0.14f * (1f + 0.4f * s.y)
+}
+
+/** The session's missed throws, lying on the floor by the bin (behind the desks). */
+@Composable
+private fun FloorBalls(spots: List<Int>, modifier: Modifier = Modifier) {
+    val colors = Chalkroom.colors
+    if (spots.isEmpty()) return
+    Canvas(modifier) {
+        spots.forEach { i ->
+            val (c, r) = floorSpot(i, size.width, size.height)
+            drawBall(colors, c, r, spin = 70f * i)
+        }
+    }
+}
+
+/** The ball on its way: it pops up from Pip's desk and arcs to the bin's rim (dropping in) or to its floor spot. */
+@Composable
+private fun PaperFlight(f: Flight, modifier: Modifier = Modifier) {
+    val colors = Chalkroom.colors
+    Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        val pip = places.getValue(StudentId.PIP)
+        val start = Offset(w * (pip.x + pip.width * 0.72f), h * pip.bottom - w * pip.width * 0.48f)
+        val rimY = h * BIN_BOTTOM - w * BIN_W * 1.05f
+        val (end, endR) = if (f.toss.goesIn) {
+            Offset(w * BIN_X, rimY + w * 0.012f) to w * BIN_W * 0.14f
+        } else {
+            floorSpot(f.toss.spot, w, h)
+        }
+        val control = Offset((start.x + end.x) / 2, minOf(start.y, end.y) - h * 0.3f)
+        val t = f.progress.value
+        val u = 1f - t
+        var at = Offset(
+            u * u * start.x + 2 * u * t * control.x + t * t * end.x,
+            u * u * start.y + 2 * u * t * control.y + t * t * end.y,
+        )
+        // Landing: one small hop where it falls.
+        if (f.bounce.value > 0f) at += Offset(w * 0.01f * f.bounce.value, -h * 0.012f * sin(PI.toFloat() * f.bounce.value))
+        // Further away it gets smaller.
+        val r = w * 0.028f + (endR - w * 0.028f) * t
+        val spin = 600f * t + 90f * f.bounce.value
+        if (f.toss.goesIn && t > 0.8f) {
+            // Into the bin: hidden as it drops below the rim.
+            clipRect(bottom = rimY) { drawBall(colors, at, r, spin) }
+        } else {
+            drawBall(colors, at, r, spin)
+        }
+    }
+}
 private const val CALL_MS = 1_400L
 
 /** Where [id]'s head and face sit on screen, in px: top of the head down to the desk top. */
@@ -731,6 +1017,12 @@ private fun Seat(
     glanceAtSwitch: Boolean = false,
     noticeTick: Int = 0,
     callTick: Int = 0,
+    startle: Boolean = false,
+    readAt: Offset? = null,
+    headX: Float? = null,
+    slowNodTick: Int = 0,
+    proud: Boolean = false,
+    extraHops: Int = 0,
 ) {
     val kind = life?.kind
     val propMotion by animateFloatAsState(
@@ -743,13 +1035,17 @@ private fun Seat(
         expression = Expression.IDLE,
         motes = seat.motes,
         notebookOpen = seat.paused,
-        lookAt = if (glanceAtSwitch) towardSwitch else kind?.lookAt,
-        hopTick = if (kind == LifeKind.PIP_BOUNCE) life?.tick ?: 0 else 0,
+        lookAt = if (glanceAtSwitch) towardSwitch else readAt ?: kind?.lookAt,
+        hopTick = (if (kind == LifeKind.PIP_BOUNCE) life?.tick ?: 0 else 0) + extraHops,
         propMotion = propMotion,
         doodleStrokes = doodleStrokes,
         asleep = asleep,
         noticeTick = noticeTick,
         callTick = callTick,
+        startle = startle,
+        headX = headX,
+        slowNodTick = slowNodTick,
+        proud = proud,
         modifier = modifier.clickable(
             interactionSource = remember { MutableInteractionSource() },
             indication = null,
@@ -790,7 +1086,12 @@ private fun rememberRoomLife(enabled: Boolean): RoomLifeState {
         var last: LifeKind? = null
         while (true) {
             delay(Random.nextLong(12_000, 20_000))
-            snapshotFlow { state.quiet }.first { !it }
+            // Held back by a nap: wait for the wake-up, then start the wait over, so it doesn't fire on waking.
+            if (state.napping) {
+                snapshotFlow { state.napping }.first { !it }
+                continue
+            }
+            snapshotFlow { state.quiet || state.napping }.first { !it }
             val kind = lifeBag.filter { it != last }.random()
             last = kind
             state.start(kind)
@@ -812,6 +1113,17 @@ private class RoomLifeState {
     /** Someone else is moving (walking in, a lesson calling): hold off until they're done. */
     var quiet by mutableStateOf(false)
 
+    /** Students are dozing: nobody doodles or fidgets in their sleep. */
+    var napping by mutableStateOf(false)
+
+    /** When something last happened in the room (a touch, or a move ending), elapsed realtime. */
+    var lastActivityAt = SystemClock.elapsedRealtime()
+        private set
+
+    fun touch() {
+        lastActivityAt = SystemClock.elapsedRealtime()
+    }
+
     val busy: Boolean get() = current != null
 
     fun start(kind: LifeKind) {
@@ -822,6 +1134,7 @@ private class RoomLifeState {
 
     fun stop() {
         current = null
+        touch()
     }
 
     /** What [id] is doing right now, if anything. */
