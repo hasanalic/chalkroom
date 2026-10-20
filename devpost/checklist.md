@@ -115,7 +115,22 @@ Build mode: fast
 
 ## Final Review
 
+- [ ] Demo polish round — things that will show in the demo video; the learner names them at the start of the next session
 - [ ] Final review complete — feedback resolved and learner confirms ready to ship
+
+**Where we are (handoff, 2026-10-20):**
+- All slices done. Kick-the-tires done (two rounds of learner feedback, all fixed and retried on the emulator, last fixes in `7d72847`).
+- Final review verification ran and passed (see the last Revisions bullets): app build, lint 0 errors, all unit tests green. The learner has **not** confirmed ready to ship: they want the demo polish round first. Do not tick the final-review box until they confirm after it.
+- Next: ask the learner what to polish for the demo video, interview before changing anything, record each agreed item as an unchecked line here, fix, verify on the emulator, commit, have them retry. Then ask again whether it's ready to ship, then the Code Tour and App Map.
+- Deferred by the learner earlier ("leave for now"), possible polish candidates if they come up: the empty wall band in the classroom, and an unsent explanation being lost on Back in a lesson.
+
+**How to run it:** key in the gitignored root `.env`; `./gradlew :server:run` (port 8080, `/health`); emulator `emulator-5554` only, `./gradlew :app:installDebug`. The app talks to `http://10.0.2.2:8080`. Driving it by adb: `adb -e shell uiautomator dump` to find buttons by text, `adb -e shell input text` to type (spaces as `%s`), and send one lesson turn at a time — input sent while a student is thinking gets lost or appended. If screencaps look frozen, cold-boot the emulator with `-no-snapshot-load`.
+
+**Tests and evals:** `./gradlew test` is offline and green even with a key in `.env`. The evals call Gemini and use quota; they run only with `./gradlew :server:test -Pevals`, and only when the learner asks. The last recorded run is `server/eval-report.md`.
+
+**Known limits (accepted by the learner, not to be tuned further without asking):**
+- Juno sometimes still names the result as the cause (e.g. "the equinox happens because day and night become equal", "the hemisphere tilts toward the Sun because the sunlight hits it more directly"), even though her prompt bans it and REVERSED-labeled beliefs are dropped. Her first beliefs on the seasons notes are usually real learner mistakes.
+- Flaw shaping: Mira scores 7/9 against a per-student target of 7/8, so `FlawShapingEval` reports a failure; overall it passes (88.9–92.6%). Mira's prompt is unchanged from the accepted run.
 
 ## Code Tour and App Map
 
