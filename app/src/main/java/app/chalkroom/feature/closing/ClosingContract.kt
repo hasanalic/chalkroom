@@ -12,6 +12,9 @@ object ClosingContract {
         val studentId: StudentId,
         val topicTitle: String = "",
         val whatStuck: List<ClearedItem> = emptyList(),
+        /** The board as the lesson left it, and how many lines it was sized for. */
+        val chalkLines: List<String> = emptyList(),
+        val boardFitLines: Int = 3,
         val beat: Beat = Beat.HEADER,
         val expression: Expression = Expression.GOT_IT,
         val openIndex: Int? = null,

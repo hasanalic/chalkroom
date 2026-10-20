@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -54,13 +55,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalView
@@ -91,11 +93,13 @@ import app.chalkroom.students.StudentCatalog
 import app.chalkroom.students.StudentFigure
 import app.chalkroom.students.StudentProfile
 import app.chalkroom.ui.components.CardShape
+import app.chalkroom.ui.components.ChalkLines
 import app.chalkroom.ui.components.Ledge
 import app.chalkroom.ui.components.LightCard
 import app.chalkroom.ui.components.LineCard
 import app.chalkroom.ui.components.PrimaryButton
 import app.chalkroom.ui.components.QuietButton
+import app.chalkroom.ui.components.drawErasedArcs
 import app.chalkroom.ui.theme.Chalkroom
 import app.chalkroom.ui.theme.ChalkroomTheme
 import app.chalkroom.ui.theme.Radii
@@ -272,7 +276,10 @@ private fun DrainBar(fraction: Float) {
     }
 }
 
-/** The student large with their motes, on their colour washed over cream. */
+/**
+ * The student in front of a slate board. What you taught goes up on the board's left, one chalk line
+ * per belief your words cleared, written on once the clearing and the pad are done.
+ */
 @Composable
 private fun Stage(state: UiState, lesson: Lesson, profile: StudentProfile) {
     val colors = Chalkroom.colors
@@ -289,13 +296,24 @@ private fun Stage(state: UiState, lesson: Lesson, profile: StudentProfile) {
         Modifier
             .fillMaxWidth()
             .height(272.dp)
-            .background(profile.color.copy(alpha = 0.18f).compositeOver(colors.page)),
-        contentAlignment = Alignment.BottomCenter,
+            .clipToBounds()
+            .background(colors.board)
+            .drawBehind { drawErasedArcs(Offset.Zero, size, colors.card.copy(alpha = 0.035f)) },
+        contentAlignment = Alignment.BottomEnd,
     ) {
+        ChalkLines(
+            lines = lesson.chalkLines.take(state.chalkShown),
+            accent = profile.color,
+            fitLines = lesson.totalCount,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .fillMaxSize()
+                .padding(start = 18.dp, top = 16.dp, bottom = 12.dp, end = BOARD_STUDENT_W - 12.dp),
+        )
         StudentFigure(
             studentId = lesson.studentId,
             expression = state.expression,
-            modifier = Modifier.width(225.dp),
+            modifier = Modifier.padding(end = 6.dp).width(BOARD_STUDENT_W),
             motes = lesson.queue.map { Mote(it.id, if (it.id == state.clearingMoteId) clearProgress else 0f) },
             activeMoteId = state.clearingMoteId ?: lesson.current?.id,
             motesStill = state.clearingStep != null,
@@ -305,10 +323,13 @@ private fun Stage(state: UiState, lesson: Lesson, profile: StudentProfile) {
             state.writing,
             enter = fadeIn(tween(200)),
             exit = fadeOut(tween(300)),
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 28.dp, bottom = 14.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = BOARD_STUDENT_W - 50.dp).offset(y = 14.dp),
         ) { NotePad() }
     }
 }
+
+/** The student stands to the right so the board's left keeps room for three chalk lines. */
+private val BOARD_STUDENT_W = 168.dp
 
 /** New lines type in quickly; the full text is laid out from the start so the card doesn't grow. */
 @Composable

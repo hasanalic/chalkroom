@@ -1,6 +1,7 @@
 package app.chalkroom.server
 
 import app.chalkroom.server.ai.AiUnavailable
+import app.chalkroom.server.ai.ChalkLine
 import app.chalkroom.server.ai.GeneratedDeck
 import app.chalkroom.server.ai.JudgeVerdict
 import app.chalkroom.server.ai.TurnInput
@@ -93,7 +94,8 @@ fun Application.configureRoutes(
                     else -> verdict.reply.trim().takeIf { it.isNotEmpty() }
                         ?: throw AiUnavailable("empty_reply")
                 }
-                call.respond(TurnResponse(addressed = verdict.addressed, reply = reply))
+                val chalkLine = if (verdict.addressed) ChalkLine.clean(verdict.chalkLine) else null
+                call.respond(TurnResponse(addressed = verdict.addressed, reply = reply, chalkLine = chalkLine))
             }
         }
     }

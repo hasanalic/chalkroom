@@ -41,7 +41,9 @@ class LessonViewModel(
 
     private val profile = StudentCatalog[studentId]
 
-    private val _state = MutableStateFlow(UiState(lesson = repository.lesson(studentId)))
+    private val _state = MutableStateFlow(
+        repository.lesson(studentId).let { UiState(lesson = it, chalkShown = it?.chalkLines?.size ?: 0) },
+    )
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private val _effects = Channel<UiEffect>(Channel.BUFFERED)
@@ -68,7 +70,7 @@ class LessonViewModel(
             UiEvent.ContinueAfterAnswer -> {
                 val lesson = repository.lesson(studentId) ?: return
                 if (lesson.phase == ItemPhase.REVEALED && _state.value.phase != Phase.CLEARING) {
-                    viewModelScope.launch { clear(sentence = null, reply = null) }
+                    viewModelScope.launch { clear(sentence = null, reply = null, chalkLine = null) }
                 }
             }
         }
@@ -105,7 +107,7 @@ class LessonViewModel(
                         }
                     }
                 is ApiResult.Success ->
-                    if (result.value.addressed) clear(sentence = text, reply = result.value.reply)
+                    if (result.value.addressed) clear(sentence = text, reply = result.value.reply, chalkLine = result.value.chalkLine)
                     else miss(text, result.value.reply)
             }
         }
@@ -119,8 +121,8 @@ class LessonViewModel(
         _state.update { it.copy(phase = Phase.IDLE) }
     }
 
-    /** [sentence] null = cleared via the answer card (no reply, not in What stuck). */
-    private suspend fun clear(sentence: String?, reply: String?) {
+    /** [sentence] null = cleared via the answer card (no reply, not in What stuck, no chalk line). */
+    private suspend fun clear(sentence: String?, reply: String?, chalkLine: String?) {
         val head = repository.lesson(studentId)?.current
         _state.update { it.copy(phase = Phase.CLEARING, spokenLine = head?.currentLine, clearingStep = ClearingStep.HOLD, clearingMoteId = head?.id) }
         commitAfter({
@@ -130,16 +132,25 @@ class LessonViewModel(
                     ClearingStep.HOLD -> _effects.send(UiEffect.SoftHaptic)
                     ClearingStep.EYES_WIDEN -> _state.update { it.copy(expression = Expression.GOT_IT) }
                     ClearingStep.COUNTER_DROPS -> {
-                        commitClear(sentence)
+                        commitClear(sentence, chalkLine)
                         _effects.send(UiEffect.SoftHaptic)
                     }
                     ClearingStep.SPEAK -> _state.update { it.copy(spokenLine = reply ?: it.spokenLine, writing = reply != null) }
                     else -> Unit
                 }
             }
-        }) { commitClear(sentence) }
+        }) { commitClear(sentence, chalkLine) }
 
-        delay(if (reply == null) REVEALED_HOLD_MS else (REPLY_HOLD_MS + REPLY_MS_PER_CHAR * reply.length).coerceAtMost(REPLY_HOLD_MAX_MS))
+        val hold = if (reply == null) REVEALED_HOLD_MS else (REPLY_HOLD_MS + REPLY_MS_PER_CHAR * reply.length).coerceAtMost(REPLY_HOLD_MAX_MS)
+        val lines = repository.lesson(studentId)?.chalkLines?.size ?: 0
+        if (lines > _state.value.chalkShown) {
+            // The chalk line is written once the clearing and the pad's squiggles are done, and gets time to finish.
+            delay(PAD_MS)
+            _state.update { it.copy(chalkShown = lines) }
+            delay((hold - PAD_MS).coerceAtLeast(CHALK_WRITE_MS))
+        } else {
+            delay(hold)
+        }
         _state.update {
             it.copy(phase = Phase.IDLE, expression = Expression.PUZZLED, spokenLine = null, clearingStep = null, clearingMoteId = null, writing = false, lastExplanation = null)
         }
@@ -148,10 +159,10 @@ class LessonViewModel(
 
     private var clearCommitted = false
 
-    private fun commitClear(sentence: String?) {
+    private fun commitClear(sentence: String?, chalkLine: String?) {
         if (clearCommitted) return
         clearCommitted = true
-        repository.update(studentId) { if (sentence != null) LessonLogic.clearCurrent(it, sentence) else LessonLogic.clearRevealed(it) }
+        repository.update(studentId) { if (sentence != null) LessonLogic.clearCurrent(it, sentence, chalkLine) else LessonLogic.clearRevealed(it) }
     }
 
     /** Runs [moment]; [commit] always runs after it, even if the screen is left mid-moment. */
@@ -175,5 +186,9 @@ class LessonViewModel(
         const val REPLY_HOLD_MS = 1_800L
         const val REPLY_MS_PER_CHAR = 35L
         const val REPLY_HOLD_MAX_MS = 5_000L
+        /** The note pad's squiggles (NotePad) after SPEAK. */
+        const val PAD_MS = 1_100L
+        /** Longest chalk line (writeMs) plus its underline. */
+        const val CHALK_WRITE_MS = 1_900L
     }
 }

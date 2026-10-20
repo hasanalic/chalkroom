@@ -49,13 +49,17 @@ class LessonRepository {
         s.copy(lessons = s.lessons + (studentId to step(lesson)))
     }
 
-    /** Closing: the lesson leaves the room and the desk goes idle. Returns what it was. */
+    /**
+     * Closing: the lesson leaves the room and the desk goes idle; its chalk lines go up on the class
+     * board, unless it has none, then the previous board stays. Returns what it was.
+     */
     fun finish(studentId: StudentId): Lesson? {
         val lesson = lesson(studentId)
         _state.update { s ->
             s.copy(
                 lessons = s.lessons - studentId,
                 pauseOrder = s.pauseOrder - studentId,
+                learned = lesson?.chalkLines?.takeIf { it.isNotEmpty() }?.let { Learned(studentId, it) } ?: s.learned,
             )
         }
         return lesson

@@ -24,7 +24,13 @@ class ClosingViewModel(private val studentId: StudentId, repository: LessonRepos
     private val finished = repository.finish(studentId)
 
     private val _state = MutableStateFlow(
-        UiState(studentId, topicTitle = finished?.topicTitle.orEmpty(), whatStuck = finished?.cleared.orEmpty()),
+        UiState(
+            studentId,
+            topicTitle = finished?.topicTitle.orEmpty(),
+            whatStuck = finished?.cleared.orEmpty(),
+            chalkLines = finished?.chalkLines.orEmpty(),
+            boardFitLines = finished?.totalCount?.coerceAtLeast(1) ?: 3,
+        ),
     )
     val state: StateFlow<UiState> = _state.asStateFlow()
 

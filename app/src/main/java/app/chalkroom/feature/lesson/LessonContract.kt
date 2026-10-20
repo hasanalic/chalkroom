@@ -24,6 +24,8 @@ object LessonContract {
         /** Bumps on each miss so the screen replays the per-student unconvinced pose. */
         val unconvincedTick: Int = 0,
         val writing: Boolean = false,
+        /** How many of the lesson's chalk lines are on the board; the newest goes up only after the clearing and pad. */
+        val chalkShown: Int = 0,
     ) {
         val inputLocked: Boolean get() = phase != Phase.IDLE && phase != Phase.FAILED
     }

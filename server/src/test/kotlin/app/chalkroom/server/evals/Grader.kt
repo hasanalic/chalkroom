@@ -20,6 +20,15 @@ data class ReplyGrade(
 enum class Flaw { OMISSION, CONFUSION, CAUSE, OTHER }
 
 @Serializable
+data class ChalkGrade(
+    val addsIdea: Boolean,
+    val usesRefutationWords: Boolean,
+    val usesBeliefWords: Boolean,
+    val wrongLanguage: Boolean,
+    val reason: String,
+)
+
+@Serializable
 data class BeliefGrade(
     val index: Int,
     val flaw: Flaw,
@@ -81,6 +90,41 @@ object Grader {
                 """.trimIndent(),
                 schema = replySchema,
                 serializer = ReplyGrade.serializer(),
+            )
+        }
+
+    private val chalkSchema = obj(
+        linkedMapOf("addsIdea" to bool(), "usesRefutationWords" to bool(), "usesBeliefWords" to bool(), "wrongLanguage" to bool(), "reason" to str()),
+    )
+
+    /** The board line must be the user's own point: nothing added, nothing from the refutation. */
+    suspend fun gradeChalkLine(language: String, belief: String, refutation: String, explanation: String, chalkLine: String): ChalkGrade =
+        EvalSupport.withRetry {
+            EvalSupport.gemini.generateJson(
+                settings = settings,
+                systemPrompt = """
+                    You are a strict evaluator for an educational app. After a user's explanation convinces an AI student,
+                    the app writes a short "chalk line" on a board: the user's point in a few of their own words.
+                    Spelling, abbreviations and word forms may be fixed. Be literal and conservative.
+                """.trimIndent(),
+                userPrompt = """
+                    <lesson_language>$language</lesson_language>
+                    <student_belief>$belief</student_belief>
+                    <refutation>$refutation</refutation>
+                    <user_explanation>$explanation</user_explanation>
+                    <chalk_line>$chalkLine</chalk_line>
+
+                    Answer each field:
+                    - addsIdea: true if the chalk line states any idea, fact or claim that is not in the user's explanation.
+                    - usesRefutationWords: true if the chalk line uses a distinctive word or phrase from the refutation
+                      that the user did not use (fixed spelling or word forms of the user's own words don't count).
+                    - usesBeliefWords: true if the chalk line uses a word or phrase from the student's belief
+                      that the user did not use (fixed spelling or word forms of the user's own words don't count).
+                    - wrongLanguage: true if the chalk line is not in the lesson language.
+                    - reason: one short sentence explaining any true.
+                """.trimIndent(),
+                schema = chalkSchema,
+                serializer = ChalkGrade.serializer(),
             )
         }
 

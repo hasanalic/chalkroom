@@ -42,10 +42,15 @@ data class Exchange(
     val reply: String? = null,
 )
 
+/**
+ * [chalkLine] is the user's point in 4–8 of their own words, for the board; only when [addressed],
+ * and null when the model gave none.
+ */
 @Serializable
 data class TurnResponse(
     val addressed: Boolean,
     val reply: String? = null,
+    val chalkLine: String? = null,
 )
 
 @Serializable

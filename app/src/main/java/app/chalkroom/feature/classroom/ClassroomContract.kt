@@ -4,13 +4,19 @@ import app.chalkroom.shared.StudentId
 import app.chalkroom.students.Mote
 
 object ClassroomContract {
-    /** [board] is null when no lesson is paused: the board stays blank. */
+    /**
+     * [board] is null when no lesson is paused; then the board shows what the last finished lesson
+     * taught ([learned]), or stays blank.
+     */
     data class UiState(
         val board: Board? = null,
+        val learned: Learned? = null,
         val seats: List<Seat> = StudentId.entries.map { Seat(it) },
     )
 
     data class Board(val studentId: StudentId, val name: String, val remaining: Int)
+
+    data class Learned(val studentId: StudentId, val name: String, val lines: List<String>)
 
     data class Seat(val studentId: StudentId, val paused: Boolean = false, val motes: List<Mote> = emptyList())
 

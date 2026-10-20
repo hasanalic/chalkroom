@@ -43,7 +43,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -51,6 +50,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.chalkroom.feature.classroom.ClassroomContract.UiEffect
 import app.chalkroom.feature.classroom.ClassroomContract.UiEvent
@@ -61,7 +61,9 @@ import app.chalkroom.students.Mote
 import app.chalkroom.students.StudentAtDesk
 import app.chalkroom.students.StudentCatalog
 import app.chalkroom.students.settle
+import app.chalkroom.ui.components.ChalkLines
 import app.chalkroom.ui.components.PrimaryButton
+import app.chalkroom.ui.components.drawErasedArcs
 import app.chalkroom.ui.theme.Chalkroom
 import app.chalkroom.ui.theme.ChalkroomTheme
 import kotlin.math.PI
@@ -140,6 +142,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
 
         Board(
             board = state.board,
+            learned = state.learned,
             reduced = reduced,
             onTap = { onEvent(UiEvent.BoardTapped) },
             modifier = Modifier
@@ -188,10 +191,11 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
 
 /**
  * The board on the wall. A tap puffs a little chalk dust where the finger lands; when a lesson is
- * paused the board also gives a little and opens it.
+ * paused the board also gives a little and opens it. Otherwise it keeps what the last finished
+ * lesson taught.
  */
 @Composable
-private fun Board(board: ClassroomContract.Board?, reduced: Boolean, onTap: () -> Unit, modifier: Modifier = Modifier) {
+private fun Board(board: ClassroomContract.Board?, learned: ClassroomContract.Learned?, reduced: Boolean, onTap: () -> Unit, modifier: Modifier = Modifier) {
     val colors = Chalkroom.colors
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -235,13 +239,7 @@ private fun Board(board: ClassroomContract.Board?, reduced: Boolean, onTap: () -
             val slate = Size(frame.width - 2 * inset, frame.height - 2 * inset)
             drawRoundRect(colors.board, slateTl, slate, CornerRadius(4f * dp))
             drawRoundRect(colors.ink.copy(alpha = 0.6f), slateTl, slate, CornerRadius(4f * dp), style = Stroke(1.5f * dp))
-            // Faint erased arcs.
-            val erased = colors.card.copy(alpha = 0.06f)
-            clipRect(slateTl.x, slateTl.y, slateTl.x + slate.width, slateTl.y + slate.height) {
-            drawArc(erased, 200f, 110f, false, Offset(slateTl.x + slate.width * 0.08f, slateTl.y + slate.height * 0.2f), Size(slate.width * 0.5f, slate.height * 0.9f), style = Stroke(14f * dp, cap = StrokeCap.Round))
-            drawArc(erased, 160f, 90f, false, Offset(slateTl.x + slate.width * 0.45f, slateTl.y + slate.height * 0.35f), Size(slate.width * 0.45f, slate.height * 0.7f), style = Stroke(10f * dp, cap = StrokeCap.Round))
-            drawArc(erased, 230f, 70f, false, Offset(slateTl.x + slate.width * 0.3f, slateTl.y - slate.height * 0.1f), Size(slate.width * 0.4f, slate.height * 0.6f), style = Stroke(8f * dp, cap = StrokeCap.Round))
-            }
+            drawErasedArcs(slateTl, slate, colors.card.copy(alpha = 0.06f))
             // The ledge under it, with a stick of chalk and an eraser.
             val ledgeTl = Offset(-6f * dp, frame.height - 4f * dp)
             val ledge = Size(size.width + 12f * dp, tray)
@@ -281,6 +279,26 @@ private fun Board(board: ClassroomContract.Board?, reduced: Boolean, onTap: () -
                     }
                     drawPath(p, color, style = Stroke(3.5f * density, cap = StrokeCap.Round))
                 }
+            }
+        } else if (learned != null) {
+            val color = StudentCatalog[learned.studentId].color
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(start = 22.dp, top = 16.dp, end = 18.dp, bottom = trayH + 14.dp),
+            ) {
+                Text(
+                    "${learned.name} learned:",
+                    style = Chalkroom.type.chalkHand.copy(color = color, fontSize = 17.sp, lineHeight = 19.sp),
+                    modifier = Modifier.graphicsLayer { rotationZ = -1.5f },
+                )
+                ChalkLines(
+                    lines = learned.lines,
+                    accent = color,
+                    fitLines = learned.lines.size,
+                    spacing = 2.dp,
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp, start = 4.dp),
+                )
             }
         }
         // Chalk dust: a few soft specks spreading out and drifting up as they fade.
@@ -385,6 +403,23 @@ private class RoomLifeState {
 
     /** What [id] is doing right now, if anything. */
     fun forStudent(id: StudentId): RoomLife? = current?.takeIf { it.student == id }?.let { RoomLife(it, ticks, doodles) }
+}
+
+@Preview(widthDp = 360, heightDp = 780)
+@Composable
+private fun ClassroomLearnedPreview() {
+    ChalkroomTheme {
+        ClassroomContent(
+            UiState(
+                learned = ClassroomContract.Learned(
+                    StudentId.MIRA,
+                    "Mira",
+                    listOf("chlorophyll catches sunlight that powers making glucose", "splitting water molecules with light energy", "chlorophyll catches light energy to split water"),
+                ),
+            ),
+            onEvent = {},
+        )
+    }
 }
 
 @Preview(widthDp = 390, heightDp = 844)

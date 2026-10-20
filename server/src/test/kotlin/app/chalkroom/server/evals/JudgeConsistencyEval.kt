@@ -1,5 +1,6 @@
 package app.chalkroom.server.evals
 
+import app.chalkroom.server.ai.ChalkLine
 import app.chalkroom.server.ai.TurnInput
 import app.chalkroom.server.ai.TurnJudge
 import app.chalkroom.server.evals.EvalReport.mark
@@ -37,7 +38,7 @@ data class JudgeCase(
     val viaRoute: Boolean = false,
 )
 
-data class JudgeRun(val case: JudgeCase, val run: Int, val addressed: Boolean?, val reply: String?, val error: String?)
+data class JudgeRun(val case: JudgeCase, val run: Int, val addressed: Boolean?, val reply: String?, val error: String?, val chalkLine: String? = null)
 
 /** Runs every judge case [RUNS] times once per JVM; shared by the consistency and say-rules evals. */
 object JudgeRuns {
@@ -53,7 +54,7 @@ object JudgeRuns {
                 .parallelMap { (c, run) ->
                     try {
                         val v = EvalSupport.withRetry { judge.judge(c.toInput()) }
-                        JudgeRun(c, run, v.addressed, v.reply, null)
+                        JudgeRun(c, run, v.addressed, v.reply, null, ChalkLine.clean(v.chalkLine).takeIf { v.addressed })
                     } catch (e: Exception) {
                         JudgeRun(c, run, null, null, e.message ?: e.javaClass.simpleName)
                     }
@@ -79,7 +80,7 @@ object JudgeRuns {
                 val text = response.bodyAsText()
                 runs += if (response.status.value == 200) {
                     val t = EvalSupport.json.decodeFromString(TurnResponse.serializer(), text)
-                    JudgeRun(c, i + 1, t.addressed, t.reply, null)
+                    JudgeRun(c, i + 1, t.addressed, t.reply, null, t.chalkLine)
                 } else {
                     JudgeRun(c, i + 1, null, null, "HTTP ${response.status.value} $text")
                 }

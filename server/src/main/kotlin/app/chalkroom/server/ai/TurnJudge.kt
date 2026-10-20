@@ -10,7 +10,7 @@ import com.google.genai.types.Type
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class JudgeVerdict(val addressed: Boolean, val reply: String)
+data class JudgeVerdict(val addressed: Boolean, val reply: String, val chalkLine: String = "")
 
 data class TurnInput(
     val studentId: StudentId,
@@ -101,6 +101,16 @@ class TurnJudge(private val gemini: GeminiClient, private val settings: ModelSet
               A pushback must NEVER contain, paraphrase, or hint at the refutation or any part of the correct answer:
               do not name the missing piece, the right term, or the right direction. Only describe your own confusion.
             - Never mention any other misconception or topic.
+
+            Writing "chalkLine" (written on the classroom board as what the user taught):
+            - If addressed: the user's point boiled down to a short line of about 6 words (4 at least, 8 at most:
+              keep only the core of the correction; a second point or a purpose clause does not fit),
+              in the lesson language, using the user's own words
+              from their explanations. You may cut words, and fix spelling, abbreviations and word forms so it reads cleanly
+              ("bc" → "because", "earth tilts" → "Earth tilts"), but never add an idea the user did not say,
+              and never swap in words from the refutation.
+              Not in your voice: no "I", "you" or "me". No quotation marks, no full stop at the end.
+            - If not addressed: an empty string.
         """.trimIndent()
 
         private val SCHEMA: Schema = Schema.builder()
@@ -109,10 +119,11 @@ class TurnJudge(private val gemini: GeminiClient, private val settings: ModelSet
                 mapOf(
                     "addressed" to Schema.builder().type(Type.Known.BOOLEAN).build(),
                     "reply" to Schema.builder().type(Type.Known.STRING).build(),
+                    "chalkLine" to Schema.builder().type(Type.Known.STRING).build(),
                 ),
             )
-            .required("addressed", "reply")
-            .propertyOrdering("addressed", "reply")
+            .required("addressed", "reply", "chalkLine")
+            .propertyOrdering("addressed", "reply", "chalkLine")
             .build()
     }
 }

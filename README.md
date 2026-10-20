@@ -158,4 +158,4 @@ docker run --rm -p 8080:8080 -e GEMINI_API_KEY chalkroom-server
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Fonts: Lora and Nunito, under the SIL Open Font License (`licenses/`).
+MIT, see [LICENSE](LICENSE). Fonts: Lora, Nunito and Caveat, under the SIL Open Font License (`licenses/`).

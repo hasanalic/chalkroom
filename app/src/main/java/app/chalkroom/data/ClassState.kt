@@ -9,10 +9,13 @@ data class ClassState(
     val lastTaught: TaughtNotes? = null, // the notes the latest lesson started from, offered for reuse
     val lessons: Map<StudentId, Lesson> = emptyMap(), // at most one per student
     val pauseOrder: List<StudentId> = emptyList(), // paused students, most recent last
+    val learned: Learned? = null, // the classroom board: the last finished lesson that left chalk lines
 ) {
     /** Drives the board: the most recently paused lesson still paused. */
     val lastPausedStudentId: StudentId? get() = pauseOrder.lastOrNull()
 }
+
+data class Learned(val studentId: StudentId, val lines: List<String>)
 
 data class TaughtNotes(val notes: String, val topicTitle: String)
 
@@ -28,6 +31,7 @@ data class Lesson(
     val cleared: List<ClearedItem>, // cleared by your words → What stuck
     val revealedIds: List<String>, // cleared via the answer card → not in What stuck
     val paused: Boolean,
+    val chalkLines: List<String> = emptyList(), // your point per belief cleared by your words, when the judge gave one
 ) {
     val current: MoteItem? get() = queue.firstOrNull()
 }

@@ -76,6 +76,8 @@ data class ChalkroomType(
     val quote: TextStyle,
     /** White text on the board. */
     val chalk: TextStyle,
+    /** Chalk handwriting: what you taught, written on the board. */
+    val chalkHand: TextStyle,
 )
 
 @OptIn(ExperimentalTextApi::class)
@@ -83,6 +85,11 @@ private fun nunito(weight: Int) = Font(R.font.nunito, FontWeight(weight), variat
 
 @OptIn(ExperimentalTextApi::class)
 private val Nunito = FontFamily(nunito(400), nunito(700), nunito(800))
+
+@OptIn(ExperimentalTextApi::class)
+private val Caveat = FontFamily(
+    Font(R.font.caveat, FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
+)
 
 @OptIn(ExperimentalTextApi::class)
 private val LoraItalic = FontFamily(
@@ -100,6 +107,7 @@ private fun type(colors: ChalkroomColors) = ChalkroomType(
     studentLine = TextStyle(fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 21.sp, lineHeight = 28.sp, color = colors.card),
     quote = TextStyle(fontFamily = LoraItalic, fontWeight = FontWeight.Medium, fontStyle = FontStyle.Italic, fontSize = 15.sp, lineHeight = 22.sp, color = colors.ink),
     chalk = TextStyle(fontFamily = Nunito, fontWeight = FontWeight.Bold, fontSize = 17.sp, lineHeight = 22.sp, color = colors.card),
+    chalkHand = TextStyle(fontFamily = Caveat, fontWeight = FontWeight.SemiBold, fontSize = 23.sp, lineHeight = 25.sp, color = colors.card.copy(alpha = 0.93f)),
 )
 
 /** Radii from the brief. */

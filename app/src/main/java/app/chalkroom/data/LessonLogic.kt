@@ -76,13 +76,16 @@ object LessonLogic {
         else -> recordTry(lesson, explanation, reply)
     }
 
-    /** Your words cleared the head item: it goes into What stuck. */
-    fun clearCurrent(lesson: Lesson, sentence: String): Lesson {
+    /** Your words cleared the head item: it goes into What stuck, and [chalkLine] onto the board. */
+    fun clearCurrent(lesson: Lesson, sentence: String, chalkLine: String? = null): Lesson {
         val head = lesson.current ?: return lesson
-        return nextItem(lesson).copy(cleared = lesson.cleared + ClearedItem(head.statement, sentence))
+        return nextItem(lesson).copy(
+            cleared = lesson.cleared + ClearedItem(head.statement, sentence),
+            chalkLines = lesson.chalkLines + listOfNotNull(chalkLine?.takeIf { it.isNotBlank() }),
+        )
     }
 
-    /** Continue on the answer card: cleared, but not in What stuck. */
+    /** Continue on the answer card: cleared, but not in What stuck and nothing on the board. */
     fun clearRevealed(lesson: Lesson): Lesson {
         val head = lesson.current ?: return lesson
         return nextItem(lesson).copy(revealedIds = lesson.revealedIds + head.id)

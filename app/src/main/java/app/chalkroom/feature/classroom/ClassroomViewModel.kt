@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import app.chalkroom.data.ClassState
 import app.chalkroom.data.LessonRepository
 import app.chalkroom.feature.classroom.ClassroomContract.Board
+import app.chalkroom.feature.classroom.ClassroomContract.Learned
 import app.chalkroom.feature.classroom.ClassroomContract.Seat
 import app.chalkroom.feature.classroom.ClassroomContract.UiEffect
 import app.chalkroom.feature.classroom.ClassroomContract.UiEvent
@@ -50,15 +51,19 @@ class ClassroomViewModel(private val repository: LessonRepository) : ViewModel()
         viewModelScope.launch { _effects.send(effect) }
     }
 
-    private fun toUiState(s: ClassState) = UiState(
-        board = s.lastPausedStudentId?.let { id ->
+    private fun toUiState(s: ClassState): UiState {
+        val board = s.lastPausedStudentId?.let { id ->
             s.lessons[id]?.takeIf { it.paused }?.let { Board(id, StudentCatalog[id].name, it.queue.size) }
-        },
-        seats = StudentId.entries.map { id ->
-            val lesson = s.lessons[id]?.takeIf { it.paused }
-            Seat(id, paused = lesson != null, motes = lesson?.queue?.map { Mote(it.id) }.orEmpty())
-        },
-    )
+        }
+        return UiState(
+            board = board,
+            learned = s.learned?.takeIf { board == null }?.let { Learned(it.studentId, StudentCatalog[it.studentId].name, it.lines) },
+            seats = StudentId.entries.map { id ->
+                val lesson = s.lessons[id]?.takeIf { it.paused }
+                Seat(id, paused = lesson != null, motes = lesson?.queue?.map { Mote(it.id) }.orEmpty())
+            },
+        )
+    }
 
     companion object {
         const val NOD_MS = 380L

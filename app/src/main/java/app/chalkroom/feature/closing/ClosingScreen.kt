@@ -42,7 +42,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
@@ -65,10 +66,12 @@ import app.chalkroom.feature.closing.ClosingContract.UiState
 import app.chalkroom.shared.StudentId
 import app.chalkroom.students.StudentCatalog
 import app.chalkroom.students.StudentFigure
+import app.chalkroom.ui.components.ChalkLines
 import app.chalkroom.ui.components.LightCard
 import app.chalkroom.ui.components.LineCard
 import app.chalkroom.ui.components.PrimaryButton
 import app.chalkroom.ui.components.QuietButton
+import app.chalkroom.ui.components.drawErasedArcs
 import app.chalkroom.ui.theme.Chalkroom
 import app.chalkroom.ui.theme.ChalkroomTheme
 import app.chalkroom.ui.theme.Radii
@@ -121,16 +124,26 @@ fun ClosingContent(state: UiState, onEvent: (UiEvent) -> Unit) {
         ) {
             Text("Nothing left in ${profile.name}'s head", style = Chalkroom.type.display, textAlign = TextAlign.Center)
             Spacer(Modifier.height(12.dp))
-            // The bust is cropped by the frame's bottom edge, as on the lesson stage.
+            // The board as the lesson left it: what you taught on the left, the student on the right.
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(196.dp)
+                    .height(272.dp)
                     .clip(RoundedCornerShape(Radii.card))
-                    .background(profile.color.copy(alpha = 0.18f).compositeOver(colors.page)),
-                contentAlignment = Alignment.BottomCenter,
+                    .background(colors.board)
+                    .drawBehind { drawErasedArcs(Offset.Zero, size, colors.card.copy(alpha = 0.035f)) },
+                contentAlignment = Alignment.BottomEnd,
             ) {
-                StudentFigure(state.studentId, state.expression, Modifier.width(150.dp))
+                ChalkLines(
+                    lines = state.chalkLines,
+                    accent = profile.color,
+                    fitLines = state.boardFitLines,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .fillMaxSize()
+                        .padding(start = 18.dp, top = 16.dp, bottom = 12.dp, end = BOARD_STUDENT_W - 12.dp),
+                )
+                StudentFigure(state.studentId, state.expression, Modifier.padding(end = 6.dp).width(BOARD_STUDENT_W))
             }
 
             AnimatedVisibility(state.reached(Beat.RELIEF), enter = fadeIn(tween(320))) {
@@ -294,6 +307,9 @@ private fun CoverTitle(topicTitle: String) {
     }
 }
 
+/** Same as the lesson board, so the lines keep their place and size. */
+private val BOARD_STUDENT_W = 168.dp
+
 private val COVER_SIZES = listOf(15, 14, 13, 12, 11, 10)
 
 @Composable
@@ -312,6 +328,7 @@ private fun ClosingPreview() = ChalkroomTheme {
             studentId = StudentId.PIP,
             topicTitle = "Photosynthesis",
             whatStuck = listOf(ClearedItem("I think the oxygen comes from carbon dioxide.", "The oxygen comes from splitting water.")),
+            chalkLines = listOf("oxygen comes from splitting water"),
             beat = Beat.OPTIONS,
         ),
         {},

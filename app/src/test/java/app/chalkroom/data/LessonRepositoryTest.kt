@@ -52,6 +52,19 @@ class LessonRepositoryTest {
     }
 
     @Test
+    fun `finish keeps the lesson's chalk lines for the board, or the previous ones when it wrote none`() {
+        val repo = LessonRepository()
+        repo.startLesson(StudentId.MIRA, deck)
+        repo.update(StudentId.MIRA) { LessonLogic.clearCurrent(it, "They make their own food.", "plants make their own food") }
+        repo.finish(StudentId.MIRA)
+        assertEquals(Learned(StudentId.MIRA, listOf("plants make their own food")), repo.state.value.learned)
+
+        repo.startLesson(StudentId.PIP, deck)
+        repo.finish(StudentId.PIP)
+        assertEquals(StudentId.MIRA, repo.state.value.learned?.studentId)
+    }
+
+    @Test
     fun `finish removes the lesson and its board entry`() {
         val repo = LessonRepository()
         repo.startLesson(StudentId.JUNO, deck)

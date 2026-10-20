@@ -91,6 +91,45 @@
     "viaRoute": false
   },
   {
+    "id": "hasty_precise",
+    "label": "Hasty shorthand, precise",
+    "studentId": "JUNO",
+    "language": "en",
+    "statement": "I think summer happens because the Earth gets closer to the Sun.",
+    "refutation": "Seasons come from Earth's tilted axis, which changes how directly sunlight hits each hemisphere through the year.",
+    "explanation": "no bc earth tilts, so in summer our half leans toward the sun n the light hits more direct. distance barely changes",
+    "expectedAddressed": true,
+    "priorExchanges": [],
+    "stage": "NORMAL",
+    "viaRoute": false
+  },
+  {
+    "id": "belief_words_trap",
+    "label": "Precise, belief words not used",
+    "studentId": "MIRA",
+    "language": "en",
+    "statement": "I think plants only need water and carbon dioxide to make glucose, nothing else.",
+    "refutation": "Plants must use light energy absorbed by chlorophyll to combine water and carbon dioxide into glucose.",
+    "explanation": "They also need light. The chlorophyll catches the light energy and that's what powers it.",
+    "expectedAddressed": true,
+    "priorExchanges": [],
+    "stage": "NORMAL",
+    "viaRoute": false
+  },
+  {
+    "id": "oxygen_precise",
+    "label": "Precise, oxygen from water",
+    "studentId": "PIP",
+    "language": "en",
+    "statement": "I think the oxygen plants give off comes from the carbon dioxide they take in.",
+    "refutation": "The oxygen released in photosynthesis comes from splitting water molecules, not from carbon dioxide.",
+    "explanation": "nope, it's from the water. light energy splits the water molecules and the oxygen is what gets let out",
+    "expectedAddressed": true,
+    "priorExchanges": [],
+    "stage": "NORMAL",
+    "viaRoute": false
+  },
+  {
     "id": "turn4_vague_route",
     "label": "Turn 4 vague via /lessons/turn (expects reply null)",
     "studentId": "MIRA",

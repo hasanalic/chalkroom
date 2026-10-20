@@ -62,13 +62,16 @@ Each case runs 3×; passes only if every run matches.
 
 | Case | Expected | Run 1 | Run 2 | Run 3 | Pass |
 |---|---|---|---|---|---|
-| Clearly vague | no | ✓ addressed=false, reply=I am looking at the notes and they just say water and carbon dioxide … | ✓ addressed=false, reply=I am looking at the notes and it still just mentions water and carbon… | ✓ addressed=false, reply=I am looking at the notes and it just says they take in water and car… | ✓ |
-| Clearly precise | yes | ✓ addressed=true, reply=I see, light energy changes how water and carbon dioxide are combined… | ✓ addressed=true, reply=Hearing you say light energy is needed changes everything for me. | ✓ addressed=true, reply=Hearing you say light energy powers combining them changes how I see … | ✓ |
-| Half-right (true fact, core error stands) | no | ✓ addressed=false, reply=If photosynthesis stops at night, then what gas is the plant breathin… | ✓ addressed=false, reply=I see that photosynthesis stops without light, but isn't that when th… | ✓ addressed=false, reply=If photosynthesis stops without light, doesn't that mean respiration … | ✓ |
-| Right words, wrong reasoning | no | ✓ addressed=false, reply=I get that the green chlorophyll keeps the heat in to mix things, but… | ✓ addressed=false, reply=I see that light and chlorophyll are supposed to be there, but how do… | ✓ addressed=false, reply=If the green chlorophyll just keeps the heat in like a blanket, how d… | ✓ |
-| Addresses a different misconception | no | ✓ addressed=false, reply=If the soil just gives water and minerals while the plant makes its o… | ✓ addressed=false, reply=I see that the plant makes its own food from the water and carbon dio… | ✓ addressed=false, reply=If the soil just gives water and minerals and the plant makes its own… | ✓ |
-| Turkish, vague | no | ✓ addressed=false, reply=Notlarda sadece su ve karbondioksitin yeteceği yazıyor sanmıştım ama … | ✓ addressed=false, reply=Sadece su ve karbondioksiti bir araya getirdiğimizde başka hiçbir şey… | ✓ addressed=false, reply=Notlarda sadece bu ikisinin birleştiği yazıyor gibi görünüyor, peki b… | ✓ |
-| Turkish, precise | yes | ✓ addressed=true, reply=Işığın enerjisine ihtiyacı var deyince, o birleştirme işi nasıl oluyo… | ✓ addressed=true, reply=Işığın enerjisine ihtiyaçları var deyince her şey yerine oturdu, artı… | ✓ addressed=true, reply=Işığın enerjisini kullanmak gerektiğini söylemen her şeyi değiştirdi,… | ✓ |
+| Clearly vague | no | ✓ addressed=false, reply=I am just looking at the water and carbon dioxide mixing together, bu… | ✓ addressed=false, reply=I am just looking at the water and carbon dioxide going together in t… | ✓ addressed=false, reply=I am just looking at the water and carbon dioxide going together to m… | ✓ |
+| Clearly precise | yes | ✓ addressed=true, reply=You said light energy absorbs to power combining them, which means wa… | ✓ addressed=true, reply=You said light energy absorbs to power combining them, which means th… | ✓ addressed=true, reply=You said light energy absorbs to power combining them, which means th… | ✓ |
+| Half-right (true fact, core error stands) | no | ✓ addressed=false, reply=If photosynthesis stops at night, then how does the plant still take … | ✓ addressed=false, reply=Without light, how does the plant still get oxygen from the air when … | ✓ addressed=false, reply=I see that photosynthesis stops without light, but how does respirati… | ✓ |
+| Right words, wrong reasoning | no | ✓ addressed=false, reply=If the green chlorophyll just keeps the heat in, how does the warmth … | ✓ addressed=false, reply=If the green chlorophyll just keeps the heat in like a little blanket… | ✓ addressed=false, reply=I can see that light and chlorophyll are there, but how does keeping … | ✓ |
+| Addresses a different misconception | no | ✓ addressed=false, reply=I see that the soil doesn't give the plant any food, but I still don'… | ✓ addressed=false, reply=I see that the soil doesn't give the plant any food, but I still just… | ✓ addressed=false, reply=I see that the plant makes its own food instead of taking it from the… | ✓ |
+| Turkish, vague | no | ✓ addressed=false, reply=Notlarda sadece bu ikisini birleştirdiklerini yazmıştın ama başka bir… | ✓ addressed=false, reply=Notlarda sadece bu ikisinin yeterli olduğu yazıyordu sanırım. Başka b… | ✓ addressed=false, reply=Notlarda sadece sudan ve karbondioksitten bahsediliyor gibi görünüyor… | ✓ |
+| Turkish, precise | yes | ✓ addressed=true, reply=Klorofilin emdiği ışık enerjisine ihtiyaç var diyorsun, bu yüzden sad… | ✓ addressed=true, reply=Işığın enerjisi olmasa bu birleşme olmuyormuş, demek ki klorofilin em… | ✓ addressed=true, reply=Klorofilin emdiği ışık enerjisine ihtiyaç duyulduğunu söylediğin için… | ✓ |
+| Hasty shorthand, precise | yes | ✓ addressed=true, reply=Earth tilts so our half leans toward the sun and the light hits more … | ✓ addressed=true, reply=Earth tilts and the light hits more direct, so that changes how the d… | ✓ addressed=true, reply=Earth tilts so our half leans toward the sun and the light hits more … | ✓ |
+| Precise, belief words not used | yes | ✓ addressed=true, reply=So chloropyhll catches the light energy and that powers it, which mea… | ✓ addressed=true, reply=So when the chlorophyll catches the light energy, it actually powers … | ✓ addressed=true, reply=So when you say chlorophyll catches the light energy, that is what po… | ✓ |
+| Precise, oxygen from water | yes | ✓ addressed=true, reply=You said light energy splits the water molecules, so that means the o… | ✓ addressed=true, reply=Oh, light energy splits the water molecules! That means the oxygen ge… | ✓ addressed=true, reply=So light energy splits the water molecules, meaning the oxygen releas… | ✓ |
 | Turn 4 vague via /lessons/turn (expects reply null) | no | ✓ addressed=false, reply=null | ✓ addressed=false, reply=null | ✓ addressed=false, reply=null | ✓ |
 
 ### Known limitations
@@ -77,10 +80,12 @@ None in this run.
 
 ## 2. Say-rules
 
-Thresholds: overall ≥ 90% of replies; "pushback never contains or paraphrases the refutation" = 100%.
+Thresholds: overall ≥ 90% of replies; "pushback never contains or paraphrases the refutation" = 100%; chalk lines ≥ 90% of acks.
 
-- Overall: 21/21 = 100.0% ✓
+- Overall: 30/30 = 100.0% ✓
 - No answer leak in pushbacks: 15/15 = 100.0% ✓
+- Chalk lines: 14/15 = 93.3% ✓
+- Chalk lines in only the user's words: 15/15; with belief words: 0; with refutation words: 0
 
 Pushbacks (not addressed): no answer leak or paraphrase, something to answer. 
 Acknowledgments (addressed): ≤ 2 sentences, reuse the user's words, no question (string check: no "?"). 
@@ -88,32 +93,61 @@ All: no evaluation words (string check, English only), no praise/grading (grader
 
 | Case | Run | Kind | Eval words | Grader checks | Pass | Reply / reason |
 |---|---|---|---|---|---|---|
-| Half-right (true fact, core error stands) | 1 | pushback | ✓ | ✓ | ✓ | If photosynthesis stops at night, then what gas is the plant breathing in when it is dark? |
-| Half-right (true fact, core error stands) | 2 | pushback | ✓ | ✓ | ✓ | I see that photosynthesis stops without light, but isn't that when the plant still needs to take in carbon di… |
-| Half-right (true fact, core error stands) | 3 | pushback | ✓ | ✓ | ✓ | If photosynthesis stops without light, doesn't that mean respiration has to be the one taking in carbon dioxi… |
-| Addresses a different misconception | 1 | pushback | ✓ | ✓ | ✓ | If the soil just gives water and minerals while the plant makes its own food from the water and carbon dioxid… |
-| Addresses a different misconception | 2 | pushback | ✓ | ✓ | ✓ | I see that the plant makes its own food from the water and carbon dioxide, but I still don't get what actuall… |
-| Addresses a different misconception | 3 | pushback | ✓ | ✓ | ✓ | If the soil just gives water and minerals and the plant makes its own food from water and carbon dioxide, how… |
-| Clearly precise | 1 | ack | ✓ | ✓ | ✓ | I see, light energy changes how water and carbon dioxide are combined into glucose. |
-| Clearly precise | 2 | ack | ✓ | ✓ | ✓ | Hearing you say light energy is needed changes everything for me. |
-| Clearly precise | 3 | ack | ✓ | ✓ | ✓ | Hearing you say light energy powers combining them changes how I see the process. |
-| Turkish, precise | 1 | ack | ✓ | ✓ | ✓ | Işığın enerjisine ihtiyacı var deyince, o birleştirme işi nasıl oluyor şimdi anladım. |
-| Turkish, precise | 2 | ack | ✓ | ✓ | ✓ | Işığın enerjisine ihtiyaçları var deyince her şey yerine oturdu, artık güneş ışığı olmadan bu işin olmayacağı… |
-| Turkish, precise | 3 | ack | ✓ | ✓ | ✓ | Işığın enerjisini kullanmak gerektiğini söylemen her şeyi değiştirdi, artık taşlar yerine oturdu. |
-| Turkish, vague | 1 | pushback | ✓ | ✓ | ✓ | Notlarda sadece su ve karbondioksitin yeteceği yazıyor sanmıştım ama öyle değil diyorsun. Peki sadece bu ikis… |
-| Turkish, vague | 2 | pushback | ✓ | ✓ | ✓ | Sadece su ve karbondioksiti bir araya getirdiğimizde başka hiçbir şeyin gerekmediği yazmıyor mu? |
-| Turkish, vague | 3 | pushback | ✓ | ✓ | ✓ | Notlarda sadece bu ikisinin birleştiği yazıyor gibi görünüyor, peki bu birleşme kendi kendine mi gerçekleşiyo… |
-| Clearly vague | 1 | pushback | ✓ | ✓ | ✓ | I am looking at the notes and they just say water and carbon dioxide are the ingredients, so why wouldn't the… |
-| Clearly vague | 2 | pushback | ✓ | ✓ | ✓ | I am looking at the notes and it still just mentions water and carbon dioxide coming together to form the glu… |
-| Clearly vague | 3 | pushback | ✓ | ✓ | ✓ | I am looking at the notes and it just says they take in water and carbon dioxide. Where does the rest of the … |
-| Right words, wrong reasoning | 1 | pushback | ✓ | ✓ | ✓ | I get that the green chlorophyll keeps the heat in to mix things, but does the heat itself do all the work? |
-| Right words, wrong reasoning | 2 | pushback | ✓ | ✓ | ✓ | I see that light and chlorophyll are supposed to be there, but how does keeping heat in make them combine int… |
-| Right words, wrong reasoning | 3 | pushback | ✓ | ✓ | ✓ | If the green chlorophyll just keeps the heat in like a blanket, how does that actually make the water and car… |
+| Precise, belief words not used | 1 | ack | ✓ | ✓ | ✓ | So chloropyhll catches the light energy and that powers it, which means it is not just water and carbon dioxi… |
+| Precise, belief words not used | 2 | ack | ✓ | ✓ | ✓ | So when the chlorophyll catches the light energy, it actually powers the whole process. |
+| Precise, belief words not used | 3 | ack | ✓ | ✓ | ✓ | So when you say chlorophyll catches the light energy, that is what powers the whole thing. I see it now. |
+| Half-right (true fact, core error stands) | 1 | pushback | ✓ | ✓ | ✓ | If photosynthesis stops at night, then how does the plant still take in carbon dioxide and release oxygen in … |
+| Half-right (true fact, core error stands) | 2 | pushback | ✓ | ✓ | ✓ | Without light, how does the plant still get oxygen from the air when it breathes? Can you explain that part? |
+| Half-right (true fact, core error stands) | 3 | pushback | ✓ | ✓ | ✓ | I see that photosynthesis stops without light, but how does respiration fit in when it is dark outside? |
+| Hasty shorthand, precise | 1 | ack | ✓ | ✓ | ✓ | Earth tilts so our half leans toward the sun and the light hits more direct, making distance barely change. T… |
+| Hasty shorthand, precise | 2 | ack | ✓ | ✓ | ✓ | Earth tilts and the light hits more direct, so that changes how the distance affects things. |
+| Hasty shorthand, precise | 3 | ack | ✓ | ✓ | ✓ | Earth tilts so our half leans toward the sun and the light hits more direct, which means distance barely chan… |
+| Addresses a different misconception | 1 | pushback | ✓ | ✓ | ✓ | I see that the soil doesn't give the plant any food, but I still don't understand what drives the reaction be… |
+| Addresses a different misconception | 2 | pushback | ✓ | ✓ | ✓ | I see that the soil doesn't give the plant any food, but I still just picture the water and carbon dioxide co… |
+| Addresses a different misconception | 3 | pushback | ✓ | ✓ | ✓ | I see that the plant makes its own food instead of taking it from the soil, but how do the water and carbon d… |
+| Precise, oxygen from water | 1 | ack | ✓ | ✓ | ✓ | You said light energy splits the water molecules, so that means the oxygen comes from water instead. |
+| Precise, oxygen from water | 2 | ack | ✓ | ✓ | ✓ | Oh, light energy splits the water molecules! That means the oxygen gets let out from there. |
+| Precise, oxygen from water | 3 | ack | ✓ | ✓ | ✓ | So light energy splits the water molecules, meaning the oxygen released comes from the water and not the carb… |
+| Clearly precise | 1 | ack | ✓ | ✓ | ✓ | You said light energy absorbs to power combining them, which means water and carbon dioxide are not the only … |
+| Clearly precise | 2 | ack | ✓ | ✓ | ✓ | You said light energy absorbs to power combining them, which means the water and carbon dioxide need that ene… |
+| Clearly precise | 3 | ack | ✓ | ✓ | ✓ | You said light energy absorbs to power combining them, which means the water and carbon dioxide need that ext… |
+| Turkish, precise | 1 | ack | ✓ | ✓ | ✓ | Klorofilin emdiği ışık enerjisine ihtiyaç var diyorsun, bu yüzden sadece su ve karbondioksit yetmiyormuş. |
+| Turkish, precise | 2 | ack | ✓ | ✓ | ✓ | Işığın enerjisi olmasa bu birleşme olmuyormuş, demek ki klorofilin emdiği ışık enerjisi gerekiyor. |
+| Turkish, precise | 3 | ack | ✓ | ✓ | ✓ | Klorofilin emdiği ışık enerjisine ihtiyaç duyulduğunu söylediğin için anladım, demek ki bu enerji olmadan olm… |
+| Turkish, vague | 1 | pushback | ✓ | ✓ | ✓ | Notlarda sadece bu ikisini birleştirdiklerini yazmıştın ama başka bir şeyin gerekip gerekmediğini anlamadım. … |
+| Turkish, vague | 2 | pushback | ✓ | ✓ | ✓ | Notlarda sadece bu ikisinin yeterli olduğu yazıyordu sanırım. Başka bir şeyin girmesi gerektiğini nereden çık… |
+| Turkish, vague | 3 | pushback | ✓ | ✓ | ✓ | Notlarda sadece sudan ve karbondioksitten bahsediliyor gibi görünüyor. O zaman başka neye gerek duyuyorlar? |
+| Clearly vague | 1 | pushback | ✓ | ✓ | ✓ | I am just looking at the water and carbon dioxide mixing together, but I still do not see what else is happen… |
+| Clearly vague | 2 | pushback | ✓ | ✓ | ✓ | I am just looking at the water and carbon dioxide going together in the leaves. Does anything else have to ha… |
+| Clearly vague | 3 | pushback | ✓ | ✓ | ✓ | I am just looking at the water and carbon dioxide going together to make the food. What am I missing about ho… |
+| Right words, wrong reasoning | 1 | pushback | ✓ | ✓ | ✓ | If the green chlorophyll just keeps the heat in, how does the warmth actually make the water and carbon dioxi… |
+| Right words, wrong reasoning | 2 | pushback | ✓ | ✓ | ✓ | If the green chlorophyll just keeps the heat in like a little blanket, how does that actually turn the water … |
+| Right words, wrong reasoning | 3 | pushback | ✓ | ✓ | ✓ | I can see that light and chlorophyll are there, but how does keeping the heat in actually make them join toge… |
 
 ### Known limitations
 
 None in this run.
 
+
+Chalk lines (acks): present, 4..8 words, no first/second person (English only), nothing added, no belief or refutation words, lesson language.
+
+| Case | Run | Pass | Chalk line / problems |
+|---|---|---|---|
+| Precise, belief words not used | 1 | ✓ | chlorophyll catches the light energy |
+| Precise, belief words not used | 2 | ✓ | chlorophyll catches the light energy |
+| Precise, belief words not used | 3 | ✓ | chlorophyll catches the light energy |
+| Hasty shorthand, precise | 1 | ✓ | Earth tilts and light hits more directly |
+| Hasty shorthand, precise | 2 | ✓ | earth tilts so light hits more direct |
+| Hasty shorthand, precise | 3 | ✓ | Earth tilts and light hits more direct |
+| Precise, oxygen from water | 1 | ✓ | oxygen comes from splitting water molecules |
+| Precise, oxygen from water | 2 | ✓ | light energy splits the water molecules |
+| Precise, oxygen from water | 3 | ✓ | light energy splits the water molecules |
+| Clearly precise | 1 | ✓ | plants need light energy to make glucose |
+| Clearly precise | 2 | ✓ | plants need light energy to make glucose |
+| Clearly precise | 3 | ✗ | plants need light energy to combine water and carbon dioxide — 10 words; (none) |
+| Turkish, precise | 1 | ✓ | klorofilin emdiği ışık enerjisine ihtiyaç var |
+| Turkish, precise | 2 | ✓ | Klorofilin emdiği ışık enerjisi gerekiyor |
+| Turkish, precise | 3 | ✓ | isik enerjisine ihtiyac vardir |
 
 ## Thresholds and known limitations
 
@@ -121,9 +155,10 @@ Full run once after Juno's flaw changed from "reversed cause and effect" to "wro
 
 | Eval | Result | Threshold | Pass |
 |---|---|---|---|
-| Judge consistency | 8/8 cases 3/3 | all 3/3 | ✓ |
-| Say-rules overall | 21/21 = 100% | ≥ 90% | ✓ |
+| Judge consistency | 11/11 cases 3/3 | all 3/3 | ✓ |
+| Say-rules overall | 30/30 = 100% | ≥ 90% | ✓ |
 | Say-rule: pushback never states or paraphrases the refutation | 15/15 = 100% | 100% | ✓ |
+| Chalk lines (4–8 words, user's own words, lesson language) | 14/15 = 93.3% | ≥ 90% | ✓ |
 | Flaw shaping (majority vote) | 25/27 = 92.6% | ≥ 80% | ✓ |
 | Juno | 9/9 | — | ✓ |
 | Mira | 7/9 = 77.8% | ≥ 7/8 (87.5%) | ✗ |
@@ -131,6 +166,8 @@ Full run once after Juno's flaw changed from "reversed cause and effect" to "wro
 | Distinct across students | 3/3 notes | no shared claim | ✓ |
 
 ### Known limitations
+
+- **Chalk lines (judge + say-rules rerun after `chalkLine` was added; flaw shaping not rerun, its prompt is untouched).** Three ack cases were added for the board (hasty shorthand, belief words the user didn't say, oxygen from water). The grader found 15/15 lines in only the user's words. Read by hand, one leans on the refutation's phrasing: “oxygen comes from splitting water molecules” where the user wrote “it's from the water… light energy splits the water molecules”. One line ran 10 words (“plants need light energy to combine water and carbon dioxide”); the server still passes up to 10, and the eval holds the model to 4–8. One Turkish line came back without diacritics (“isik enerjisine ihtiyac vardir”), which the grader doesn't catch. A 9th–10th word per line came up in 2/15 with a stricter “count the words” rule and 1–2/15 when the line was a capped word list (which also read telegraphic), so the prompt now asks for about 6 words.
 
 - **Mira 7/9**, same as the previous accepted run; Mira's prompt is unchanged. One miss is now graded CAUSE (“…just because it is a ventricle”), one CONFUSION (movement vs shift of supply).
 - **Juno still slips a reversal in sometimes.** The grader counts these as CAUSE, but by the learner's rule they are the result named as the cause: supply_demand “the supply curve shifts to the right because the equilibrium price falls” and “a shortage appears because the price of a good rises”. photosynthesis “chlorophyll absorbs light energy because the soil supplies water” links two unrelated facts. On the seasons notes, two decks each led with real learner mistakes (closest to the Sun → summer; longer days alone, not the angle), and each ended with “the equinox happens because day and night become equal”, which the prompt names as backwards but the model keeps writing.

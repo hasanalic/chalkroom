@@ -94,6 +94,20 @@ class LessonLogicTest {
     }
 
     @Test
+    fun `a cleared belief adds its chalk line, a blank or missing one adds none`() {
+        var l = LessonLogic.clearCurrent(start, "They make their own food.", "plants make their own food")
+        l = LessonLogic.clearCurrent(l, "Chlorophyll catches it.", " ")
+        l = LessonLogic.clearCurrent(l, "It goes out.")
+        assertEquals(listOf("plants make their own food"), l.chalkLines)
+    }
+
+    @Test
+    fun `a revealed belief writes nothing on the board`() {
+        val l = LessonLogic.clearRevealed(LessonLogic.revealAnswer(missTimes(4), answer))
+        assertTrue(l.chalkLines.isEmpty())
+    }
+
+    @Test
     fun `clearRevealed drops the counter but stays out of What stuck`() {
         val l = LessonLogic.clearRevealed(LessonLogic.revealAnswer(missTimes(4), answer))
         assertEquals(2, l.queue.size)

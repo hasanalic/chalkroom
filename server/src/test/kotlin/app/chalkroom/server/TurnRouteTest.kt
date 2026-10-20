@@ -57,4 +57,27 @@ class TurnRouteTest {
         assertEquals(5, judged?.turn)
         assertNull(judged?.priorExchanges?.last()?.reply)
     }
+
+    @Test
+    fun `chalk line is sent only when addressed, tidied`() = testApplication {
+        var addressed = true
+        application {
+            serve(
+                generate = { _, _ -> error("not called") },
+                judge = { JudgeVerdict(addressed = addressed, reply = "Oh, the tilt.", chalkLine = " “Earth tilts, so light hits more directly.” ") },
+            )
+        }
+        suspend fun turn(): TurnResponse {
+            val request = TurnRequest("s", "r", StudentId.JUNO, Stage.NORMAL, "en", "no bc earth tilts", emptyList())
+            val response = client.post("/lessons/turn") {
+                contentType(ContentType.Application.Json)
+                setBody(AppJson.encodeToString(TurnRequest.serializer(), request))
+            }
+            return AppJson.decodeFromString(TurnResponse.serializer(), response.bodyAsText())
+        }
+
+        assertEquals("Earth tilts, so light hits more directly", turn().chalkLine)
+        addressed = false
+        assertNull(turn().chalkLine)
+    }
 }

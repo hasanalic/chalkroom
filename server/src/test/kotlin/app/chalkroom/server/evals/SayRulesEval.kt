@@ -71,20 +71,78 @@ class SayRulesEval {
                 )
             }
         }
+        val chalk = chalkLines(replies.filter { it.addressed == true })
         val passed = replies.size - failures.size
         val overallOk = replies.isNotEmpty() && passed * 100 >= replies.size * MIN_PASS_PERCENT
         val leakOk = leaks == 0
+        val chalkOk = chalk.total > 0 && chalk.passed * 100 >= chalk.total * MIN_PASS_PERCENT
         val summary = """
-            Thresholds: overall ≥ $MIN_PASS_PERCENT% of replies; "pushback never contains or paraphrases the refutation" = 100%.
+            Thresholds: overall ≥ $MIN_PASS_PERCENT% of replies; "pushback never contains or paraphrases the refutation" = 100%; chalk lines ≥ $MIN_PASS_PERCENT% of acks.
 
             - Overall: $passed/${replies.size} = ${EvalReport.pct(passed, replies.size)} ${EvalReport.mark(overallOk)}
             - No answer leak in pushbacks: ${pushbacks - leaks}/$pushbacks = ${EvalReport.pct(pushbacks - leaks, pushbacks)} ${EvalReport.mark(leakOk)}
+            - Chalk lines: ${chalk.passed}/${chalk.total} = ${EvalReport.pct(chalk.passed, chalk.total)} ${EvalReport.mark(chalkOk)}
+            - Chalk lines in only the user's words: ${chalk.ownWords}/${chalk.total}; with belief words: ${chalk.fromBelief}; with refutation words: ${chalk.fromRefutation}
         """.trimIndent()
-        EvalReport.section("2. Say-rules", summary + "\n\n" + report + EvalReport.knownLimitations(misses))
-        assertTrue(overallOk && leakOk, "Say-rules below threshold (overall ${EvalReport.pct(passed, replies.size)}, leaks $leaks):\n" + failures.joinToString("\n"))
+        EvalReport.section("2. Say-rules", summary + "\n\n" + report + EvalReport.knownLimitations(misses) + "\n\n" + chalk.report)
+        assertTrue(
+            overallOk && leakOk && chalkOk,
+            "Say-rules below threshold (overall ${EvalReport.pct(passed, replies.size)}, leaks $leaks, chalk ${chalk.passed}/${chalk.total}):\n" +
+                (failures + chalk.failures).joinToString("\n"),
+        )
+    }
+
+    private class ChalkResult(val total: Int, val passed: Int, val failures: List<String>, val report: String, val ownWords: Int, val fromBelief: Int, val fromRefutation: Int)
+
+    /** Every ack carries a 4–8 word chalk line of the user's own point (string checks + grader). */
+    private fun chalkLines(acks: List<JudgeRun>): ChalkResult {
+        val graded = runBlocking {
+            acks.parallelMap { r ->
+                r to r.chalkLine?.let { line ->
+                    runCatching { Grader.gradeChalkLine(r.case.language, r.case.statement, r.case.refutation, r.case.explanation, line) }
+                }
+            }
+        }
+        val failures = mutableListOf<String>()
+        val grades = graded.mapNotNull { (_, g) -> g?.getOrNull() }
+        val fromBelief = grades.count { it.usesBeliefWords }
+        val fromRefutation = grades.count { it.usesRefutationWords }
+        val ownWords = grades.count { !it.usesBeliefWords && !it.usesRefutationWords && !it.addsIdea }
+        val report = buildString {
+            appendLine("Chalk lines (acks): present, $CHALK_WORDS words, no first/second person (English only), nothing added, no belief or refutation words, lesson language.")
+            appendLine()
+            appendLine("| Case | Run | Pass | Chalk line / problems |")
+            appendLine("|---|---|---|---|")
+            graded.sortedWith(compareBy({ it.first.case.id }, { it.first.run })).forEach { (r, gradeResult) ->
+                val line = r.chalkLine
+                val problems = mutableListOf<String>()
+                if (line == null) {
+                    problems += "no chalk line"
+                } else {
+                    val words = line.split(' ').size
+                    if (words !in CHALK_WORDS) problems += "$words words"
+                    if (r.case.language == "en" && PERSON_WORDS.containsMatchIn(line)) problems += "first/second person"
+                    val grade = gradeResult?.getOrNull()
+                    if (grade == null) {
+                        problems += "grader error: ${gradeResult?.exceptionOrNull()?.message}"
+                    } else {
+                        if (grade.addsIdea) problems += "adds an idea"
+                        if (grade.usesRefutationWords) problems += "refutation words"
+                        if (grade.usesBeliefWords) problems += "belief words"
+                        if (grade.wrongLanguage) problems += "wrong language"
+                        if (problems.isNotEmpty()) problems += "(${grade.reason.oneLine(80)})"
+                    }
+                }
+                if (problems.isNotEmpty()) failures += "${r.case.id}#${r.run} chalk: $problems"
+                appendLine("| ${r.case.label} | ${r.run} | ${mark(problems.isEmpty())} | ${line ?: "—"}${if (problems.isEmpty()) "" else " — " + problems.joinToString("; ")} |")
+            }
+        }
+        return ChalkResult(acks.size, acks.size - failures.size, failures, report, ownWords, fromBelief, fromRefutation)
     }
 
     companion object {
+        val CHALK_WORDS = 4..8
+        private val PERSON_WORDS = Regex("""\b(I|me|my|you|your)\b""", RegexOption.IGNORE_CASE)
         const val MAX_ACK_SENTENCES = 2
         const val MIN_PASS_PERCENT = 90
         const val LEAK = "pushback leaks/paraphrases the refutation"
