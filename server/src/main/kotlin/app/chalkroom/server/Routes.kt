@@ -94,7 +94,7 @@ fun Application.configureRoutes(
                     else -> verdict.reply.trim().takeIf { it.isNotEmpty() }
                         ?: throw AiUnavailable("empty_reply")
                 }
-                val chalkLine = if (verdict.addressed) ChalkLine.clean(verdict.chalkLine) else null
+                val chalkLine = if (verdict.addressed) ChalkLine.clean(verdict.chalkLine, input.explanation) else null
                 call.respond(TurnResponse(addressed = verdict.addressed, reply = reply, chalkLine = chalkLine))
             }
         }

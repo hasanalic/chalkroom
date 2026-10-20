@@ -59,7 +59,7 @@ class TurnRouteTest {
     }
 
     @Test
-    fun `chalk line is sent only when addressed, tidied`() = testApplication {
+    fun `chalk line is sent only when addressed, tidied and lowercase`() = testApplication {
         var addressed = true
         application {
             serve(
@@ -76,7 +76,7 @@ class TurnRouteTest {
             return AppJson.decodeFromString(TurnResponse.serializer(), response.bodyAsText())
         }
 
-        assertEquals("Earth tilts, so light hits more directly", turn().chalkLine)
+        assertEquals("earth tilts, so light hits more directly", turn().chalkLine)
         addressed = false
         assertNull(turn().chalkLine)
     }

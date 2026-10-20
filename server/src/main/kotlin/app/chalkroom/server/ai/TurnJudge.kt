@@ -107,9 +107,10 @@ class TurnJudge(private val gemini: GeminiClient, private val settings: ModelSet
               keep only the core of the correction; a second point or a purpose clause does not fit),
               in the lesson language, using the user's own words
               from their explanations. You may cut words, and fix spelling, abbreviations and word forms so it reads cleanly
-              ("bc" → "because", "earth tilts" → "Earth tilts"), but never add an idea the user did not say,
+              ("bc" → "because", "tilts twords" → "tilts towards"), but never add an idea the user did not say,
               and never swap in words from the refutation.
               Keep the lesson language's own letters (ı, ş, ğ, ç, ö, ü and the like), even if the user typed plain a–z.
+              Start it lowercase, even "sun" or "earth"; only a person's name keeps its capital.
               Not in your voice: no "I", "you" or "me". No quotation marks, no full stop at the end.
             - If not addressed: an empty string.
         """.trimIndent()

@@ -54,7 +54,7 @@ object JudgeRuns {
                 .parallelMap { (c, run) ->
                     try {
                         val v = EvalSupport.withRetry { judge.judge(c.toInput()) }
-                        JudgeRun(c, run, v.addressed, v.reply, null, ChalkLine.clean(v.chalkLine).takeIf { v.addressed })
+                        JudgeRun(c, run, v.addressed, v.reply, null, ChalkLine.clean(v.chalkLine, c.explanation).takeIf { v.addressed })
                     } catch (e: Exception) {
                         JudgeRun(c, run, null, null, e.message ?: e.javaClass.simpleName)
                     }
