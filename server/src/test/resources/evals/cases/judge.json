@@ -91,19 +91,6 @@
     "viaRoute": false
   },
   {
-    "id": "tr_ascii_typed",
-    "label": "Turkish, typed without Turkish letters",
-    "studentId": "MIRA",
-    "language": "tr",
-    "statement": "Bitkilerin besin üretmesi için havadan karbondioksit ve köklerinden su alması yeterli diye anladım. Bunları birleştirmek için başka bir şeye ihtiyaçları yok, değil mi?",
-    "refutation": "Karbondioksit ve suyu birleştirip glikoz üretebilmek için bitkilerin klorofil aracılığıyla emdikleri ışık enerjisine de ihtiyacı vardır.",
-    "explanation": "Hayir, su ve karbondioksit yetmez. Bitkinin glikoz yapmasi icin klorofilin yakaladigi isik enerjisi lazim.",
-    "expectedAddressed": true,
-    "priorExchanges": [],
-    "stage": "NORMAL",
-    "viaRoute": false
-  },
-  {
     "id": "hasty_precise",
     "label": "Hasty shorthand, precise",
     "studentId": "JUNO",
