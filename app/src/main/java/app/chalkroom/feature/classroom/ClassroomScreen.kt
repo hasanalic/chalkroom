@@ -290,7 +290,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
             if (warm.value > 0f) drawRect(colors.switchGlow.copy(alpha = 0.08f * warm.value))
         }
 
-        val switchSize = 48.dp
+        val switchSize = 64.dp
         LightSwitch(
             on = toggle.asState(),
             dark = dark.asState(),
@@ -323,6 +323,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
 }
 
 private const val WAKE_GAP_MS = 260L
+private const val SWITCH_SCALE = 1.4f
 private const val BUTTON_AT_MS = 2_500L
 
 /**
@@ -348,14 +349,14 @@ private fun LightSwitch(on: State<Float>, dark: State<Float>, glowing: Boolean, 
             .clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onTap)
             .semantics { contentDescription = "Light switch" },
     ) {
-        val dp = density
+        val dp = density * SWITCH_SCALE
         val d = dark.value
         val p = pulse.value
         val c = center
         if (d > 0f) {
-            val r = (30f + 6f * p) * dp
+            val r = (32f + 7f * p) * dp
             drawCircle(
-                Brush.radialGradient(listOf(colors.switchGlow.copy(alpha = (0.32f + 0.22f * p) * d), Color.Transparent), c, r),
+                Brush.radialGradient(listOf(colors.switchGlow.copy(alpha = (0.44f + 0.26f * p) * d), Color.Transparent), c, r),
                 r,
                 c,
             )
@@ -380,7 +381,7 @@ private fun LightSwitch(on: State<Float>, dark: State<Float>, glowing: Boolean, 
         // In the dark: dimmed, with a warm rim catching the glow.
         if (d > 0f) {
             drawRoundRect(colors.night.copy(alpha = 0.35f * d), tl, plate, r)
-            drawRoundRect(colors.switchGlow.copy(alpha = (0.45f + 0.35f * p) * d), tl, plate, r, style = Stroke(1.5f * dp))
+            drawRoundRect(colors.switchGlow.copy(alpha = (0.6f + 0.35f * p) * d), tl, plate, r, style = Stroke(1.5f * dp))
         }
     }
 }
