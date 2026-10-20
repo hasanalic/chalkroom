@@ -45,6 +45,10 @@ tasks.named<JavaExec>("run") {
     environment(dotEnv)
 }
 
+// Evals hit a live model and use quota, so they are opt-in: `./gradlew :server:test -Pevals`.
+// Without the flag, `test` runs only the offline unit tests, even with a key in .env.
+val runEvals = providers.gradleProperty("evals").isPresent
+
 tasks.test {
     useJUnitPlatform()
     environment(dotEnv)
@@ -52,6 +56,10 @@ tasks.test {
         events("passed", "skipped", "failed")
         showStandardStreams = true
     }
-    // Evals hit a live model; rerun them every time instead of trusting Gradle's up-to-date check.
-    outputs.upToDateWhen { false }
+    if (runEvals) {
+        // Rerun them every time instead of trusting Gradle's up-to-date check.
+        outputs.upToDateWhen { false }
+    } else {
+        exclude("app/chalkroom/server/evals/**")
+    }
 }

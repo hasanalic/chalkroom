@@ -111,16 +111,18 @@ Rebuild and reinstall after changing it. If you run the server on another port (
 
 ## Running the evals
 
-The evals call the real Gemini API, so they need your key (from `.env` or the environment) and use quota.
+The evals call the real Gemini API, so they are opt-in: plain `./gradlew test` runs only the offline
+unit tests, even with a key in `.env`. To run them, add `-Pevals`. They need your key (from `.env` or
+the environment) and use quota.
 
 ```bash
-./gradlew :server:test
+./gradlew :server:test -Pevals
 ```
 
-Without a key, the evals are skipped and only the unit tests run. To run one eval:
+With `-Pevals` but no key, the evals are skipped. To run one eval:
 
 ```bash
-./gradlew :server:test --tests '*SayRulesEval'
+./gradlew :server:test -Pevals --tests '*SayRulesEval'
 ```
 
 The others are `FlawShapingEval` and `JudgeConsistencyEval`. Results are written to

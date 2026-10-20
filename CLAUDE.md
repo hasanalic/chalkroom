@@ -15,4 +15,4 @@ Android app (learn by teaching AI students) + Ktor server + shared DTOs. Plan li
 ## Conventions
 - App: Kotlin, Jetpack Compose, MVI per screen (Contract with UIState/UIEvent/UIEffect, ViewModel with single `onEvent`, Screen + stateless ScreenContent with preview), Koin, type-safe Navigation Compose, Ktor client.
 - Server: Ktor (Netty), kotlinx.serialization, Google Gen AI Java SDK with structured output. The server is the only holder of the key and all prompts.
-- Evals: JUnit 5 in `:server`, skipped when `GEMINI_API_KEY` is unset.
+- Evals: JUnit 5 in `:server`, opt-in with `-Pevals` (plain `test` stays offline), skipped when `GEMINI_API_KEY` is unset.

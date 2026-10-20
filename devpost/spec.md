@@ -94,7 +94,7 @@ Models (learner choice, revised during the build; defaults in `Config.kt`, every
   1. `export GEMINI_API_KEY=…`
   2. `./gradlew :server:run`
   3. Run `:app` from Android Studio.
-- **Run evals:** `./gradlew :server:test` (needs `GEMINI_API_KEY`).
+- **Run evals:** `./gradlew :server:test -Pevals` (opt-in; needs `GEMINI_API_KEY`). Plain `test` runs only the offline unit tests.
 - **Deploy (learner choice: Railway):**
   1. `server/Dockerfile` builds the fat JAR with `./gradlew :server:buildFatJar`.
   2. Railway builds from the Dockerfile. Set the env vars in Railway.
