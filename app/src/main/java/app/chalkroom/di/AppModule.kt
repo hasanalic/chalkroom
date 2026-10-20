@@ -3,6 +3,8 @@ package app.chalkroom.di
 import app.chalkroom.BuildConfig
 import app.chalkroom.data.ChalkroomApi
 import app.chalkroom.data.LessonRepository
+import app.chalkroom.data.PrefsRoomLights
+import app.chalkroom.data.RoomLights
 import app.chalkroom.feature.choosestudent.ChooseStudentViewModel
 import app.chalkroom.feature.classroom.ClassroomViewModel
 import app.chalkroom.feature.closing.ClosingViewModel
@@ -18,6 +20,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
+import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
 
 private const val TIMEOUT_MS = 30_000L
@@ -35,6 +38,7 @@ val appModule = module {
     }
     single { ChalkroomApi(get(), BuildConfig.API_BASE_URL) }
     single { LessonRepository() }
+    single<RoomLights> { PrefsRoomLights(androidContext()) }
 
     viewModelOf(::ClassroomViewModel)
     viewModel { params -> PasteNotesViewModel(params.getOrNull<StudentId>(), get()) }

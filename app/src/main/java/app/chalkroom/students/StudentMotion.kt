@@ -90,6 +90,20 @@ fun rememberBreath(id: StudentId, still: Boolean): State<Float> {
     )
 }
 
+/** Asleep: the same 0 → 1 → 0, slower (about 1.6× the student's waking breath), still on its own clock. */
+@Composable
+fun rememberSleepBreath(id: StudentId, still: Boolean): State<Float> {
+    if (still) return remember { mutableFloatStateOf(0f) }
+    val ms = (id.breathMs() * 1.6f).toInt()
+    val offset = remember { Random.nextInt(0, ms) }
+    return rememberInfiniteTransition(label = "sleepBreath").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(ms, easing = EaseInOutSine), RepeatMode.Reverse, StartOffset(offset)),
+        label = "sleepBreath",
+    )
+}
+
 /** 0 = open, 1 = shut. Every 2–6 s, ~150 ms, sometimes a double blink. */
 @Composable
 fun rememberBlink(still: Boolean): State<Float> {

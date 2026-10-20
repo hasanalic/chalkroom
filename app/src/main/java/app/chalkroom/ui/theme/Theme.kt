@@ -49,6 +49,9 @@ data class ChalkroomColors(
     val woodDeep: Color = Color(0xFFB9792C),
     val board: Color = Color(0xFF3E5149),
     val chair: Color = Color(0xFF5B6680),
+    // Lights off: the deep navy wash over the dark room, and the switch's warm glow.
+    val night: Color = Color(0xFF0A1230),
+    val switchGlow: Color = Color(0xFFFFCF7A),
     // Juno's cream face and the shadow its hat brim casts on it.
     val junoFace: Color = Color(0xFFF5EDE2),
     val junoShadow: Color = Color(0xFF6B2A16),

@@ -6,9 +6,11 @@ import app.chalkroom.students.Mote
 object ClassroomContract {
     /**
      * [board] is null when no lesson is paused; then the board shows what the last finished lesson
-     * taught ([learned]), or stays blank.
+     * taught ([learned]), or stays blank. [lightsOn] is false only on the very first open after
+     * install, until the switch on the wall is tapped.
      */
     data class UiState(
+        val lightsOn: Boolean = true,
         val board: Board? = null,
         val learned: Learned? = null,
         val seats: List<Seat> = StudentId.entries.map { Seat(it) },
@@ -24,10 +26,14 @@ object ClassroomContract {
         data object TeachSomething : UiEvent
         data class StudentTapped(val studentId: StudentId) : UiEvent
         data object BoardTapped : UiEvent
+        data object SwitchTapped : UiEvent
     }
 
     sealed interface UiEffect {
         data object OpenPasteNotes : UiEffect
         data class OpenLesson(val studentId: StudentId) : UiEffect
+
+        /** The switch tapped with the lights already on: one quick flicker. */
+        data object Flicker : UiEffect
     }
 }

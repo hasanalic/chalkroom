@@ -2,6 +2,7 @@ package app.chalkroom.students
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseInOutSine
+import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -64,7 +65,9 @@ private const val LAST_MOTE_SCALE = 1.25f
  * [reactTick] plays the student's own unconvinced reaction (a miss): never red, never a shake.
  * [lookAt] points the eyes somewhere (fractions of the width; the head follows late) and each bump
  * of [hopTick] is a small bounce: the classroom's ambient life uses both. Each bump of [nodTick]
- * is a small nod (the same one a tap gives, without looking up).
+ * is a small nod (the same one a tap gives, without looking up). While [asleep] the eyes are shut,
+ * the head droops and the breathing is slower and deeper; waking opens the eyes, blinks, stretches
+ * and looks up at you for a beat.
  */
 @Composable
 fun StudentFigure(
@@ -79,13 +82,14 @@ fun StudentFigure(
     lookAt: Offset? = null,
     hopTick: Int = 0,
     nodTick: Int = 0,
+    asleep: Boolean = false,
 ) {
     val profile = StudentCatalog[studentId]
     val colors = Chalkroom.colors
     val reduced = Chalkroom.reducedMotion
     val breath by rememberBreath(studentId, still = reduced)
-    val blink by rememberBlink(still = reduced)
-    val glance = rememberGlance(active = !reduced && look == Look.AT_YOU && expression.glances)
+    val blink by rememberBlink(still = reduced || asleep)
+    val glance = rememberGlance(active = !reduced && !asleep && look == Look.AT_YOU && expression.glances)
     val scan by rememberScan()
     val drift by rememberDriftClock(still = reduced || motesStill || motes.any { it.clearProgress > 0f })
 
@@ -94,6 +98,27 @@ fun StudentFigure(
     val attend = remember { Animatable(0f) }
     val nod = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
+
+    // Asleep → awake: eyes open, a blink, a small stretch, then a beat looking up at you.
+    val sleep = remember { Animatable(if (asleep) 1f else 0f) }
+    val sleepBreath by rememberSleepBreath(studentId, still = reduced || (!asleep && sleep.value == 0f))
+    val wakeBlink = remember { Animatable(0f) }
+    val wakeStretch = remember { Animatable(0f) }
+    LaunchedEffect(asleep) {
+        if (asleep) return@LaunchedEffect sleep.snapTo(1f)
+        if (sleep.value == 0f) return@LaunchedEffect
+        if (reduced) return@LaunchedEffect sleep.snapTo(0f)
+        sleep.animateTo(0f, tween(320, easing = EaseOutCubic))
+        delay(140)
+        wakeBlink.animateTo(1f, tween(70))
+        wakeBlink.animateTo(0f, tween(90))
+        delay(60)
+        wakeStretch.animateTo(1f, tween(360, easing = EaseInOutSine))
+        launch { wakeStretch.animateTo(0f, settle()) }
+        attend.animateTo(1f, tween(220, easing = Dart))
+        delay(550)
+        attend.animateTo(0f, tween(500))
+    }
 
     val react = remember { Animatable(0f) }
     LaunchedEffect(reactTick) {
@@ -175,14 +200,16 @@ fun StudentFigure(
         val a = attend.value
         val r = react.value
         val re = studentId.reaction(r)
+        val z = sleep.value
+        val st = wakeStretch.value
 
         // Body: breathing fills it (taller, a touch narrower), the head tilts and follows the eyes late.
         // The bust runs past the bottom edge and is cropped there, so a tilt never lifts a corner.
-        val sx = 1f - 0.006f * breath - 0.01f * nod.value
-        val sy = 1f + 0.02f * breath + stretch - 0.03f * nod.value + re.stretch + 0.025f * hop.value
-        val headTurn = tilt + re.tilt + (glance.headX.value * (1f - lookW) + lookHead) * (1f - a) * 55f
+        val sx = 1f - 0.006f * breath * (1f - z) - 0.012f * sleepBreath * z - 0.01f * nod.value - 0.015f * st
+        val sy = 1f + 0.02f * breath * (1f - z) + 0.04f * sleepBreath * z - 0.03f * z + stretch - 0.03f * nod.value + re.stretch + 0.025f * hop.value + 0.06f * st
+        val headTurn = tilt + re.tilt + studentId.sleepTilt() * z + (glance.headX.value * (1f - lookW) + lookHead) * (1f - a) * 55f
         clipRect(bottom = h) { withTransform({
-            translate(top = (nod.value * 0.02f + re.lift - 0.05f * hop.value) * w)
+            translate(top = (nod.value * 0.02f + re.lift - 0.05f * hop.value + 0.03f * z - 0.02f * st) * w)
             rotate(headTurn, Offset(w / 2, h))
             scale(sx, sy, Offset(w / 2, h))
         }) {
@@ -195,7 +222,8 @@ fun StudentFigure(
             val dy = (eyeDy * (1f - a) + gy + re.eyeDy) * w
             val ew = face.eyeW * w * eyeScale
             val eh = face.eyeH * w * eyeScale
-            val open = 1f - blink * 0.9f
+            // Asleep, the eyes are shut to a level line, like the bottom of a blink.
+            val open = 1f - maxOf(blink, z, wakeBlink.value) * 0.9f
             listOf(-1, 1).forEach { side ->
                 // A miss evens the eyes out: doubt, not a squint.
                 val shrink = if (side == 1) 1f - asym * (1f - r) else 1f
@@ -248,7 +276,7 @@ fun StudentFigure(
                             }
                         }
                     } }
-                    if (lids > 0.22f && blink < 0.5f) {
+                    if (lids > 0.22f && blink < 0.5f && z < 0.5f) {
                         drawPath(lidEdge, colors.ink, style = Stroke(0.018f * w, cap = StrokeCap.Round))
                     }
                 }
@@ -283,6 +311,13 @@ fun StudentFigure(
             drawMote(c, r, resolve, colors.page.copy(alpha = 1f - toEye), profile.shade.copy(alpha = ringAlpha), 0.016f * w)
         }
     }
+}
+
+/** Asleep, each head droops its own way, a few degrees. */
+private fun StudentId.sleepTilt(): Float = when (this) {
+    StudentId.MIRA -> -5f
+    StudentId.PIP -> 4f
+    StudentId.JUNO -> 6f
 }
 
 /** A miss, per student, at [r] 0 → 1 → 0. */

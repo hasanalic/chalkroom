@@ -1,6 +1,21 @@
 package app.chalkroom.feature.classroom
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import app.chalkroom.students.Dart
 import androidx.compose.animation.core.EaseInOutSine
 import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.animateFloatAsState
@@ -81,15 +96,17 @@ fun ClassroomScreen(
     viewModel: ClassroomViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var flicks by remember { mutableIntStateOf(0) }
     LaunchedEffect(viewModel) {
         viewModel.effects.collect {
             when (it) {
                 UiEffect.OpenPasteNotes -> onTeachSomething()
                 is UiEffect.OpenLesson -> onResumeLesson(it.studentId)
+                UiEffect.Flicker -> flicks++
             }
         }
     }
-    ClassroomContent(state, viewModel::onEvent)
+    ClassroomContent(state, viewModel::onEvent, flicks)
 }
 
 /** Where each seat sits: x and width as shares of the screen width, bottom as a share of its height. */
@@ -104,17 +121,92 @@ private val places = mapOf(
 /** Seat height / seat width (figure + desk, see StudentAtDesk). */
 private const val SEAT_ASPECT = 1.34f
 
+/** Where the light switch sits on the wall (its centre): under the shelf, beside the board, at hand height. */
+private const val SWITCH_X = 0.08f
+private const val SWITCH_Y = 0.325f
+
+/** How deep the navy wash is with the lights off: dark, but the room still faintly there. */
+private const val NIGHT_ALPHA = 0.8f
+
+/** Waking order after the lights come on, one by one. */
+private val wakeOrder = listOf(StudentId.JUNO, StudentId.MIRA, StudentId.PIP)
+
 /** The entrance stagger plays once per process (cold start), not on every return to the room. */
 private object Entrance {
     var played = false
 }
 
+/**
+ * [flicks] counts taps on the switch with the lights already on; each plays one quick flicker.
+ */
 @Composable
-fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
+fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0) {
     val reduced = Chalkroom.reducedMotion
-    val life = rememberRoomLife(enabled = !reduced)
+    val colors = Chalkroom.colors
+    val haptics = LocalHapticFeedback.current
 
-    // Entering: board, then desks, then motes.
+    // Lights off (first open ever): the room sits in the dark, students asleep, until the switch.
+    val darkAtOpen = remember { !state.lightsOn && !reduced }
+    val dark = remember { Animatable(if (darkAtOpen) 1f else 0f) }
+    val warm = remember { Animatable(0f) }
+    val flick = remember { Animatable(1f) }
+    val toggle = remember { Animatable(if (darkAtOpen) 0f else 1f) }
+    var awake by remember { mutableStateOf(if (darkAtOpen) emptySet() else StudentId.entries.toSet()) }
+    var buttonShown by remember { mutableStateOf(!darkAtOpen) }
+    val buttonIn = remember { Animatable(if (darkAtOpen) 0f else 1f) }
+    var settled by remember { mutableStateOf(!darkAtOpen) }
+    var glancing by remember { mutableStateOf(false) }
+    LaunchedEffect(state.lightsOn) {
+        if (!state.lightsOn || dark.value == 0f) return@LaunchedEffect
+        // ~600 ms warm-up with two soft dips, then the students wake one by one, then the button.
+        launch { toggle.animateTo(1f, tween(110, easing = Dart)) }
+        launch {
+            dark.animateTo(
+                0f,
+                keyframes {
+                    durationMillis = 600
+                    1f at 0 using EaseOutCubic
+                    0.3f at 130 using EaseInOutSine
+                    0.6f at 220 using EaseInOutSine
+                    0.15f at 340 using EaseInOutSine
+                    0.38f at 420 using EaseOutCubic
+                },
+            )
+        }
+        launch {
+            warm.animateTo(1f, tween(450))
+            warm.animateTo(0f, tween(1_100, easing = EaseInOutSine))
+        }
+        delay(650)
+        wakeOrder.forEach {
+            awake = awake + it
+            delay(WAKE_GAP_MS)
+        }
+        delay(BUTTON_AT_MS - 650 - wakeOrder.size * WAKE_GAP_MS)
+        buttonShown = true
+        buttonIn.animateTo(1f, settle())
+        delay(1_000)
+        settled = true
+    }
+    LaunchedEffect(flicks) {
+        if (flicks == 0 || reduced) return@LaunchedEffect
+        launch {
+            toggle.animateTo(0.25f, tween(70))
+            toggle.animateTo(1f, tween(120, easing = Dart))
+        }
+        launch {
+            flick.snapTo(0f)
+            flick.animateTo(1f, tween(240))
+        }
+        glancing = true
+        delay(900)
+        glancing = false
+    }
+
+    val life = rememberRoomLife(enabled = !reduced && settled)
+
+    // Entering: board, then desks, then motes. Not after the dark: the room is already there.
+    if (darkAtOpen) Entrance.played = true
     val stagger = remember { !Entrance.played && !reduced }
     val boardIn = remember { Animatable(if (stagger) 0f else 1f) }
     val desksIn = remember { StudentId.entries.associateWith { Animatable(if (stagger) 0f else 1f) } }
@@ -163,8 +255,10 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
             val seatW = w * place.width
             val enter = desksIn.getValue(id).value
             Seat(
-                seat = seat.copy(motes = if (motesShown) seat.motes else emptyList()),
+                seat = seat.copy(motes = if (motesShown && id in awake) seat.motes else emptyList()),
                 life = life.forStudent(id),
+                asleep = id !in awake,
+                glanceAtSwitch = glancing,
                 doodleStrokes = if (id == StudentId.MIRA) life.doodles else 0,
                 onTap = { onEvent(UiEvent.StudentTapped(id)) },
                 modifier = Modifier
@@ -177,15 +271,117 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
             )
         }
 
-        PrimaryButton(
-            "Teach something",
-            onClick = { onEvent(UiEvent.TeachSomething) },
+        // The night: a deep navy wash over the room (it takes taps while the lights are off), and a
+        // warm flush as they come on. A later flicker is one quick soft dip.
+        Canvas(
+            Modifier
+                .fillMaxSize()
+                .then(
+                    if (state.lightsOn) {
+                        Modifier
+                    } else {
+                        Modifier.pointerInput(Unit) { awaitEachGesture { awaitFirstDown() } }
+                    },
+                ),
+        ) {
+            val dip = if (flick.value < 1f) 0.45f * sin(PI.toFloat() * flick.value) else 0f
+            val night = (dark.value + dip).coerceIn(0f, 1f)
+            if (night > 0f) drawRect(colors.night.copy(alpha = NIGHT_ALPHA * night))
+            if (warm.value > 0f) drawRect(colors.switchGlow.copy(alpha = 0.08f * warm.value))
+        }
+
+        val switchSize = 48.dp
+        LightSwitch(
+            on = toggle.asState(),
+            dark = dark.asState(),
+            glowing = darkAtOpen && !state.lightsOn,
+            onTap = {
+                haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
+                onEvent(UiEvent.SwitchTapped)
+            },
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = bottom + 20.dp)
-                .padding(horizontal = 24.dp)
-                .fillMaxWidth(),
+                .offset(x = w * SWITCH_X - switchSize / 2, y = h * SWITCH_Y - switchSize / 2)
+                .size(switchSize),
         )
+
+        if (buttonShown) {
+            PrimaryButton(
+                "Teach something",
+                onClick = { onEvent(UiEvent.TeachSomething) },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = bottom + 20.dp)
+                    .padding(horizontal = 24.dp)
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        alpha = buttonIn.value.coerceIn(0f, 1f)
+                        translationY = 28.dp.toPx() * (1f - buttonIn.value)
+                    },
+            )
+        }
+    }
+}
+
+private const val WAKE_GAP_MS = 260L
+private const val BUTTON_AT_MS = 2_500L
+
+/**
+ * A small light switch on the wall: a cream plate with two screws and a toggle, up for on. [on]
+ * runs 0 (down) → 1 (up). With the lights off ([dark] 1) the plate is dimmed and, while [glowing],
+ * a faint warm glow slowly breathes around it.
+ */
+@Composable
+private fun LightSwitch(on: State<Float>, dark: State<Float>, glowing: Boolean, onTap: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = Chalkroom.colors
+    val pulse = if (glowing) {
+        rememberInfiniteTransition(label = "glow").animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(2_400, easing = EaseInOutSine), RepeatMode.Reverse),
+            label = "glow",
+        )
+    } else {
+        remember { mutableFloatStateOf(0.5f) }
+    }
+    Canvas(
+        modifier
+            .clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onTap)
+            .semantics { contentDescription = "Light switch" },
+    ) {
+        val dp = density
+        val d = dark.value
+        val p = pulse.value
+        val c = center
+        if (d > 0f) {
+            val r = (30f + 6f * p) * dp
+            drawCircle(
+                Brush.radialGradient(listOf(colors.switchGlow.copy(alpha = (0.32f + 0.22f * p) * d), Color.Transparent), c, r),
+                r,
+                c,
+            )
+        }
+        val plate = Size(20f * dp, 30f * dp)
+        val tl = Offset(c.x - plate.width / 2, c.y - plate.height / 2)
+        val r = CornerRadius(3f * dp)
+        drawRoundRect(colors.ink.copy(alpha = 0.14f), tl + Offset(2f * dp, 3f * dp), plate, r)
+        drawRoundRect(colors.card, tl, plate, r)
+        drawRoundRect(colors.ink, tl, plate, r, style = Stroke(2f * dp))
+        listOf(-1, 1).forEach { side -> drawCircle(colors.ink.copy(alpha = 0.45f), 1.5f * dp, Offset(c.x, c.y + side * 11.5f * dp)) }
+        // The recess and the toggle in it.
+        val slot = Size(8f * dp, 14f * dp)
+        val slotTl = Offset(c.x - slot.width / 2, c.y - slot.height / 2)
+        drawRoundRect(colors.line, slotTl, slot, CornerRadius(2f * dp))
+        drawRoundRect(colors.ink, slotTl, slot, CornerRadius(2f * dp), style = Stroke(1.2f * dp))
+        val lever = Size(8f * dp, 7f * dp)
+        val leverTl = Offset(slotTl.x, slotTl.y + (slot.height - lever.height) * (1f - on.value))
+        drawRoundRect(colors.card, leverTl, lever, CornerRadius(2f * dp))
+        drawLine(colors.ink.copy(alpha = 0.3f), Offset(leverTl.x + 1.5f * dp, leverTl.y + lever.height - 1.8f * dp), Offset(leverTl.x + lever.width - 1.5f * dp, leverTl.y + lever.height - 1.8f * dp), 1.2f * dp)
+        drawRoundRect(colors.ink, leverTl, lever, CornerRadius(2f * dp), style = Stroke(1.2f * dp))
+        // In the dark: dimmed, with a warm rim catching the glow.
+        if (d > 0f) {
+            drawRoundRect(colors.night.copy(alpha = 0.35f * d), tl, plate, r)
+            drawRoundRect(colors.switchGlow.copy(alpha = (0.45f + 0.35f * p) * d), tl, plate, r, style = Stroke(1.5f * dp))
+        }
     }
 }
 
@@ -316,8 +512,19 @@ private fun Board(board: ClassroomContract.Board?, learned: ClassroomContract.Le
     }
 }
 
+/** Where the eyes go when the switch flickers: up and to the left, towards it. */
+private val towardSwitch = Offset(-0.05f, -0.04f)
+
 @Composable
-private fun Seat(seat: ClassroomContract.Seat, life: RoomLife?, doodleStrokes: Int, onTap: () -> Unit, modifier: Modifier = Modifier) {
+private fun Seat(
+    seat: ClassroomContract.Seat,
+    life: RoomLife?,
+    doodleStrokes: Int,
+    onTap: () -> Unit,
+    modifier: Modifier = Modifier,
+    asleep: Boolean = false,
+    glanceAtSwitch: Boolean = false,
+) {
     val kind = life?.kind
     val propMotion by animateFloatAsState(
         if (kind == LifeKind.MIRA_DOODLE || kind == LifeKind.PIP_FIDGET || kind == LifeKind.JUNO_PLANT) 1f else 0f,
@@ -329,10 +536,11 @@ private fun Seat(seat: ClassroomContract.Seat, life: RoomLife?, doodleStrokes: I
         expression = Expression.IDLE,
         motes = seat.motes,
         notebookOpen = seat.paused,
-        lookAt = kind?.lookAt,
+        lookAt = if (glanceAtSwitch) towardSwitch else kind?.lookAt,
         hopTick = if (kind == LifeKind.PIP_BOUNCE) life?.tick ?: 0 else 0,
         propMotion = propMotion,
         doodleStrokes = doodleStrokes,
+        asleep = asleep,
         modifier = modifier.clickable(
             interactionSource = remember { MutableInteractionSource() },
             indication = null,
