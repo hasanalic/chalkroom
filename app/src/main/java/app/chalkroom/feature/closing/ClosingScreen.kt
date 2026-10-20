@@ -72,7 +72,6 @@ import app.chalkroom.ui.components.QuietButton
 import app.chalkroom.ui.theme.Chalkroom
 import app.chalkroom.ui.theme.ChalkroomTheme
 import app.chalkroom.ui.theme.Radii
-import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -104,14 +103,6 @@ fun ClosingContent(state: UiState, onEvent: (UiEvent) -> Unit) {
     val colors = Chalkroom.colors
     val profile = StudentCatalog[state.studentId]
     val scroll = rememberScrollState()
-    // Bring the notebook into view before it closes, so the moment isn't missed below the fold.
-    val showNotebook = state.reached(if (state.whatStuck.isEmpty()) Beat.RELIEF else Beat.WHAT_STUCK)
-    LaunchedEffect(showNotebook) {
-        if (showNotebook) {
-            delay(NOTEBOOK_SCROLL_DELAY_MS)
-            scroll.animateScrollTo(scroll.maxValue, tween(600, easing = FastOutSlowInEasing))
-        }
-    }
     val optionsShown = state.reached(Beat.OPTIONS)
     val optionsAlpha by animateFloatAsState(if (optionsShown) 1f else 0f, tween(300), label = "options")
     Column(
@@ -180,8 +171,6 @@ fun ClosingContent(state: UiState, onEvent: (UiEvent) -> Unit) {
         }
     }
 }
-
-private const val NOTEBOOK_SCROLL_DELAY_MS = 450L
 
 /** One of your sentences on a light card; tapping flips it over to the belief it cleared. */
 @Composable

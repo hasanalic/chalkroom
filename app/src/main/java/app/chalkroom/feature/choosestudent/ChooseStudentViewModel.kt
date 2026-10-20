@@ -9,6 +9,7 @@ import app.chalkroom.feature.choosestudent.ChooseStudentContract.UiEffect
 import app.chalkroom.feature.choosestudent.ChooseStudentContract.UiEvent
 import app.chalkroom.feature.choosestudent.ChooseStudentContract.UiState
 import app.chalkroom.shared.StudentId
+import app.chalkroom.students.Mote
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -24,7 +25,13 @@ class ChooseStudentViewModel(private val repository: LessonRepository) : ViewMod
     private val confirm = MutableStateFlow<Confirm?>(null)
 
     val state: StateFlow<UiState> = combine(repository.state, confirm) { s, c ->
-        UiState(StudentId.entries.map { Choice(it, paused = s.lessons[it]?.paused == true) }, c)
+        UiState(
+            StudentId.entries.map { id ->
+                val lesson = s.lessons[id]?.takeIf { it.paused }
+                Choice(id, paused = lesson != null, motes = lesson?.queue?.map { Mote(it.id) }.orEmpty())
+            },
+            c,
+        )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, UiState())
 
     private val _effects = Channel<UiEffect>(Channel.BUFFERED)

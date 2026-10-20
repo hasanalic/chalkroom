@@ -52,10 +52,10 @@ object StudentCatalog {
         name = "Juno",
         color = Color(0xFFEF582A),
         shade = Color(0xFFA8361A),
-        intro = "I'm Juno. I like to ask why, though sometimes I get what causes what backwards.",
+        intro = "I'm Juno. I always want to know why, though sometimes I pin it on the wrong reason.",
         stuckLine = "I can't untangle this one yet. We could look at the answer, or you could try one last way.",
-        answerLine = "Let's look at it, then. I want to see which way it really goes.",
-        reliefLine = "Hm. Now everything points the right way. That's a calm feeling.",
+        answerLine = "Let's look at it, then. I want to see what the real reason is.",
+        reliefLine = "Hm. Every why has its real reason now. That's a calm feeling.",
         prop = DeskProp.PLANT,
     )
 

@@ -34,6 +34,7 @@ import app.chalkroom.feature.choosestudent.ChooseStudentContract.UiEvent
 import app.chalkroom.feature.choosestudent.ChooseStudentContract.UiState
 import app.chalkroom.shared.StudentId
 import app.chalkroom.students.Expression
+import app.chalkroom.students.Mote
 import app.chalkroom.students.StudentAtDesk
 import app.chalkroom.students.StudentCatalog
 import app.chalkroom.ui.components.BUTTON_LEDGE_DP
@@ -122,7 +123,10 @@ private fun ChoiceCard(choice: ChooseStudentContract.Choice, onClick: () -> Unit
             .padding(start = 8.dp, end = 16.dp, top = 12.dp, bottom = 10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            StudentAtDesk(choice.studentId, Expression.IDLE, Modifier.width(112.dp), showName = false)
+            StudentAtDesk(
+                choice.studentId, Expression.IDLE, Modifier.width(112.dp),
+                motes = choice.motes, notebookOpen = choice.paused, showName = false,
+            )
             Column(Modifier.padding(start = 12.dp).weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(profile.name, style = Chalkroom.type.headline)
@@ -146,7 +150,10 @@ private fun ChoiceCard(choice: ChooseStudentContract.Choice, onClick: () -> Unit
 private fun ChooseStudentPreview() {
     ChalkroomTheme {
         ChooseStudentContent(
-            UiState(StudentId.entries.map { ChooseStudentContract.Choice(it, paused = it == StudentId.JUNO) }),
+            UiState(StudentId.entries.map { ChooseStudentContract.Choice(
+                    it, paused = it == StudentId.JUNO,
+                    motes = if (it == StudentId.JUNO) listOf(Mote("a"), Mote("b")) else emptyList(),
+                ) }),
             onEvent = {},
         )
     }

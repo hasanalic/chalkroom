@@ -1,6 +1,7 @@
 package app.chalkroom.feature.choosestudent
 
 import app.chalkroom.shared.StudentId
+import app.chalkroom.students.Mote
 
 object ChooseStudentContract {
     data class UiState(
@@ -8,8 +9,8 @@ object ChooseStudentContract {
         val confirm: Confirm? = null,
     )
 
-    /** [paused]: the student has a paused lesson, so picking them asks before replacing it. */
-    data class Choice(val studentId: StudentId, val paused: Boolean = false)
+    /** [paused]: the student has a paused lesson, so picking them asks before replacing it. [motes]: its beliefs still open. */
+    data class Choice(val studentId: StudentId, val paused: Boolean = false, val motes: List<Mote> = emptyList())
 
     /** Picked a student with a paused lesson while holding new notes: continue it, or start the new notes. */
     data class Confirm(val studentId: StudentId, val pausedTopic: String, val stillOpen: Int)
