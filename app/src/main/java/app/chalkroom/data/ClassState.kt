@@ -5,13 +5,16 @@ import app.chalkroom.shared.StudentId
 
 /** All app state. In memory only: gone when the process dies (prd.md > States and Boundaries > Persistence). */
 data class ClassState(
-    val lastNotes: String = "",
+    val lastNotes: String = "", // the paste screen's draft; emptied once a lesson starts from it
+    val lastTaught: TaughtNotes? = null, // the notes the latest lesson started from, offered for reuse
     val lessons: Map<StudentId, Lesson> = emptyMap(), // at most one per student
     val pauseOrder: List<StudentId> = emptyList(), // paused students, most recent last
 ) {
     /** Drives the board: the most recently paused lesson still paused. */
     val lastPausedStudentId: StudentId? get() = pauseOrder.lastOrNull()
 }
+
+data class TaughtNotes(val notes: String, val topicTitle: String)
 
 data class Lesson(
     val studentId: StudentId,

@@ -9,13 +9,13 @@ import app.chalkroom.feature.closing.ClosingViewModel
 import app.chalkroom.feature.lesson.LessonViewModel
 import app.chalkroom.feature.pastenotes.PasteNotesViewModel
 import app.chalkroom.feature.reading.ReadingViewModel
+import app.chalkroom.shared.AppJson
 import app.chalkroom.shared.StudentId
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.serialization.json.Json
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
@@ -26,7 +26,7 @@ val appModule = module {
     single {
         HttpClient(OkHttp) {
             expectSuccess = false
-            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; explicitNulls = false }) }
+            install(ContentNegotiation) { json(AppJson) }
             install(HttpTimeout) {
                 requestTimeoutMillis = TIMEOUT_MS
                 socketTimeoutMillis = TIMEOUT_MS

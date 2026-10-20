@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +39,8 @@ import app.chalkroom.students.StudentCatalog
 import app.chalkroom.ui.components.BUTTON_LEDGE_DP
 import app.chalkroom.ui.components.CardShape
 import app.chalkroom.ui.components.Ledge
+import app.chalkroom.ui.components.PrimaryButton
+import app.chalkroom.ui.components.QuietButton
 import app.chalkroom.ui.theme.Chalkroom
 import app.chalkroom.ui.theme.ChalkroomTheme
 import org.koin.compose.viewmodel.koinViewModel
@@ -71,7 +75,32 @@ fun ChooseStudentContent(state: UiState, onEvent: (UiEvent) -> Unit) {
             ChoiceCard(choice, onClick = { onEvent(UiEvent.Picked(choice.studentId)) })
         }
     }
+    state.confirm?.let { ConfirmSheet(it, onEvent) }
 }
+
+/** The student already has a paused lesson: say so, and let you pick which lesson to have. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ConfirmSheet(confirm: ChooseStudentContract.Confirm, onEvent: (UiEvent) -> Unit) {
+    val colors = Chalkroom.colors
+    val name = StudentCatalog[confirm.studentId].name
+    ModalBottomSheet(onDismissRequest = { onEvent(UiEvent.DismissConfirm) }, containerColor = colors.page) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("$name is still on ${confirm.pausedTopic}", style = Chalkroom.type.headline)
+            Text(
+                "${stillOpenLine(confirm.stillOpen)} Starting your new notes ends that lesson.",
+                style = Chalkroom.type.body,
+            )
+            PrimaryButton("Teach the new notes", { onEvent(UiEvent.StartNew) }, Modifier.fillMaxWidth().padding(top = 4.dp))
+            QuietButton("Continue ${confirm.pausedTopic}", { onEvent(UiEvent.ContinuePaused) }, Modifier.fillMaxWidth())
+        }
+    }
+}
+
+private fun stillOpenLine(n: Int) = if (n == 1) "1 thing still doesn't click." else "$n things still don't click."
 
 /** Each student on their own card with a ledge in their colour; pressing it pushes it down onto the ledge. */
 @Composable

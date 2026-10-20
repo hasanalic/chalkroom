@@ -21,9 +21,10 @@ class LessonLogicTest {
     )
     private val start = LessonLogic.startLesson(StudentId.MIRA, deck)
     private val stuck = "STUCK"
+    private val answer = "ANSWER"
 
     private fun missTimes(n: Int, from: Lesson = start) =
-        (1..n).fold(from) { l, i -> LessonLogic.applyMiss(l, "try $i", "reply $i", stuck) }
+        (1..n).fold(from) { l, i -> LessonLogic.applyMiss(l, "try $i", "reply $i", stuck, answer) }
 
     @Test
     fun `student speaks first with misconception 1`() {
@@ -66,6 +67,14 @@ class LessonLogicTest {
         assertEquals(ItemPhase.REVEALED, revealed.phase)
         assertEquals(5, revealed.tries)
         assertFalse(LessonLogic.canSend(revealed))
+        assertEquals(answer, revealed.current?.currentLine)
+    }
+
+    @Test
+    fun `see the answer replaces the stuck line`() {
+        val revealed = LessonLogic.revealAnswer(missTimes(4), answer)
+        assertEquals(ItemPhase.REVEALED, revealed.phase)
+        assertEquals(answer, revealed.current?.currentLine)
     }
 
     @Test
@@ -86,7 +95,7 @@ class LessonLogicTest {
 
     @Test
     fun `clearRevealed drops the counter but stays out of What stuck`() {
-        val l = LessonLogic.clearRevealed(LessonLogic.revealAnswer(missTimes(4)))
+        val l = LessonLogic.clearRevealed(LessonLogic.revealAnswer(missTimes(4), answer))
         assertEquals(2, l.queue.size)
         assertTrue(l.cleared.isEmpty())
         assertEquals(listOf("m1"), l.revealedIds)
@@ -99,7 +108,7 @@ class LessonLogicTest {
         val counts = mutableListOf(l.queue.size)
         l = missTimes(2, l); counts += l.queue.size
         l = LessonLogic.clearCurrent(l, "a"); counts += l.queue.size
-        l = LessonLogic.clearRevealed(LessonLogic.revealAnswer(l)); counts += l.queue.size
+        l = LessonLogic.clearRevealed(LessonLogic.revealAnswer(l, answer)); counts += l.queue.size
         l = LessonLogic.clearCurrent(missTimes(1, l), "c"); counts += l.queue.size
         assertEquals(listOf(3, 3, 2, 1, 0), counts)
         assertTrue(LessonLogic.isFinished(l))

@@ -1,15 +1,16 @@
 package app.chalkroom.server
 
 import app.chalkroom.server.ai.AiUnavailable
-import app.chalkroom.server.ai.MisconceptionGenerator
+import app.chalkroom.server.ai.GeneratedDeck
+import app.chalkroom.server.ai.JudgeVerdict
 import app.chalkroom.server.ai.TurnInput
-import app.chalkroom.server.ai.TurnJudge
 import app.chalkroom.shared.CreateDeckRequest
 import app.chalkroom.shared.CreateDeckResponse
 import app.chalkroom.shared.ErrorBody
 import app.chalkroom.shared.ErrorCodes
 import app.chalkroom.shared.MisconceptionDto
 import app.chalkroom.shared.NoteLimits
+import app.chalkroom.shared.StudentId
 import app.chalkroom.shared.TurnLimits
 import app.chalkroom.shared.TurnRequest
 import app.chalkroom.shared.TurnResponse
@@ -30,7 +31,10 @@ val TurnsLimit = RateLimitName("turns")
 /** Statement and refutation come back from the app; cap them so the endpoint can't carry arbitrary payloads. */
 private const val MAX_ITEM_CHARS = 2_000
 
-fun Application.configureRoutes(generator: MisconceptionGenerator, judge: TurnJudge) {
+fun Application.configureRoutes(
+    generate: suspend (notes: String, studentId: StudentId) -> GeneratedDeck,
+    judge: suspend (TurnInput) -> JudgeVerdict,
+) {
     routing {
         get("/health") { call.respondText("ok") }
 
@@ -42,7 +46,7 @@ fun Application.configureRoutes(generator: MisconceptionGenerator, judge: TurnJu
                     call.respond(HttpStatusCode.BadRequest, ErrorBody(ErrorCodes.NOTES_LENGTH))
                     return@post
                 }
-                val deck = generator.generate(notes, request.studentId)
+                val deck = generate(notes, request.studentId)
                 call.respond(
                     CreateDeckResponse(
                         language = deck.language,
@@ -83,7 +87,7 @@ fun Application.configureRoutes(generator: MisconceptionGenerator, judge: TurnJu
                     call.respond(HttpStatusCode.Conflict, ErrorBody(ErrorCodes.TURN_LIMIT))
                     return@post
                 }
-                val verdict = judge.judge(input)
+                val verdict = judge(input)
                 val reply = when {
                     !verdict.addressed && input.judgeOnly -> null // dropped whatever the model wrote
                     else -> verdict.reply.trim().takeIf { it.isNotEmpty() }

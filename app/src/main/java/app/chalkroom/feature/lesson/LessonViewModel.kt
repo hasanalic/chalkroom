@@ -63,7 +63,7 @@ class LessonViewModel(
             is UiEvent.InputChanged ->
                 if (!_state.value.inputLocked) _state.update { it.copy(input = event.text.take(TurnLimits.MAX_EXPLANATION_CHARS)) }
             UiEvent.Send -> send()
-            UiEvent.SeeAnswer -> repository.update(studentId) { if (it.phase == ItemPhase.STUCK) LessonLogic.revealAnswer(it) else it }
+            UiEvent.SeeAnswer -> repository.update(studentId) { if (it.phase == ItemPhase.STUCK) LessonLogic.revealAnswer(it, profile.answerLine) else it }
             UiEvent.OneLastTry -> repository.update(studentId, LessonLogic::chooseLastTry)
             UiEvent.ContinueAfterAnswer -> {
                 val lesson = repository.lesson(studentId) ?: return
@@ -96,7 +96,7 @@ class LessonViewModel(
                 is ApiResult.Failure ->
                     if (result.code == ErrorCodes.TURN_LIMIT) {
                         // Should never happen (the app stops at 5); not an error: show the answer.
-                        repository.update(studentId) { LessonLogic.revealAnswer(it) }
+                        repository.update(studentId) { LessonLogic.revealAnswer(it, profile.answerLine) }
                         _state.update { it.copy(phase = Phase.IDLE, expression = Expression.PUZZLED) }
                     } else {
                         // Nothing changes: your words go back in the box.
@@ -114,7 +114,7 @@ class LessonViewModel(
     private suspend fun miss(explanation: String, reply: String?) {
         _state.update { it.copy(phase = Phase.REACTING, expression = Expression.PUZZLED, unconvincedTick = it.unconvincedTick + 1) }
         commitAfter({ delay(UNCONVINCED_MS) }) {
-            repository.update(studentId) { LessonLogic.applyMiss(it, explanation, reply, profile.stuckLine) }
+            repository.update(studentId) { LessonLogic.applyMiss(it, explanation, reply, profile.stuckLine, profile.answerLine) }
         }
         _state.update { it.copy(phase = Phase.IDLE) }
     }

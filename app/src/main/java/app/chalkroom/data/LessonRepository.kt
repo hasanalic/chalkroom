@@ -18,11 +18,16 @@ class LessonRepository {
 
     fun setNotes(notes: String) = _state.update { it.copy(lastNotes = notes) }
 
-    /** Replaces any earlier lesson for this student. */
+    /**
+     * Replaces any earlier lesson for this student. The draft notes it was read from move to
+     * [ClassState.lastTaught], so the next paste starts on an empty sheet.
+     */
     fun startLesson(studentId: StudentId, deck: CreateDeckResponse) = _state.update {
         it.copy(
             lessons = it.lessons + (studentId to LessonLogic.startLesson(studentId, deck)),
             pauseOrder = it.pauseOrder - studentId,
+            lastNotes = "",
+            lastTaught = TaughtNotes(it.lastNotes, deck.topicTitle),
         )
     }
 

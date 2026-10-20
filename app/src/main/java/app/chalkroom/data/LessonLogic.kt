@@ -59,14 +59,20 @@ object LessonLogic {
     fun chooseLastTry(lesson: Lesson): Lesson =
         if (lesson.phase == ItemPhase.STUCK) lesson.copy(phase = ItemPhase.TEACHING) else lesson
 
-    /** See the answer, attempt 5 missed, or a 409: the answer card shows. [explanation] is the missed try, if any. */
-    fun revealAnswer(lesson: Lesson, explanation: String? = null): Lesson =
-        (if (explanation != null) recordTry(lesson, explanation, reply = null) else lesson).copy(phase = ItemPhase.REVEALED)
+    /**
+     * See the answer, attempt 5 missed, or a 409: the answer card shows and [answerLine] replaces the
+     * stuck line. [explanation] is the missed try, if any.
+     */
+    fun revealAnswer(lesson: Lesson, answerLine: String, explanation: String? = null): Lesson =
+        (if (explanation != null) recordTry(lesson, explanation, reply = null) else lesson).let { l ->
+            val head = l.current ?: return@let l
+            l.copy(phase = ItemPhase.REVEALED, queue = listOf(head.copy(currentLine = answerLine)) + l.queue.drop(1))
+        }
 
     /** A miss, routed by attempt: 1–3 → reply line, 4 → stuck, 5 → answer card. */
-    fun applyMiss(lesson: Lesson, explanation: String, reply: String?, stuckLine: String): Lesson = when (attempt(lesson)) {
+    fun applyMiss(lesson: Lesson, explanation: String, reply: String?, stuckLine: String, answerLine: String): Lesson = when (attempt(lesson)) {
         TurnLimits.JUDGE_ONLY_FROM_TURN -> markStuck(lesson, explanation, stuckLine)
-        TurnLimits.MAX_TURNS -> revealAnswer(lesson, explanation)
+        TurnLimits.MAX_TURNS -> revealAnswer(lesson, answerLine, explanation)
         else -> recordTry(lesson, explanation, reply)
     }
 

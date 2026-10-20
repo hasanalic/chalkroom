@@ -35,17 +35,17 @@ data class TurnRequest(
     val priorExchanges: List<Exchange>,
 )
 
-/** [reply] is null for a judge-only miss (turn 4 and 5). */
+/** [reply] is null for a judge-only miss (turn 4 and 5). The app leaves nulls out, hence the default. */
 @Serializable
 data class Exchange(
     val explanation: String,
-    val reply: String?,
+    val reply: String? = null,
 )
 
 @Serializable
 data class TurnResponse(
     val addressed: Boolean,
-    val reply: String?,
+    val reply: String? = null,
 )
 
 @Serializable

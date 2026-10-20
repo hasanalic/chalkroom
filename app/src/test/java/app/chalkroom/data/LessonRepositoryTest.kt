@@ -23,7 +23,7 @@ class LessonRepositoryTest {
     fun `pause keeps the lesson exactly and puts it on the board`() {
         val repo = LessonRepository()
         repo.startLesson(StudentId.MIRA, deck)
-        repo.update(StudentId.MIRA) { LessonLogic.applyMiss(it, "vague", "huh?", "STUCK") }
+        repo.update(StudentId.MIRA) { LessonLogic.applyMiss(it, "vague", "huh?", "STUCK", "ANSWER") }
         val before = repo.lesson(StudentId.MIRA)!!
         repo.pause(StudentId.MIRA)
         val paused = repo.lesson(StudentId.MIRA)!!
@@ -71,5 +71,14 @@ class LessonRepositoryTest {
         repo.startLesson(StudentId.MIRA, deck)
         assertFalse(repo.lesson(StudentId.MIRA)!!.paused)
         assertNull(repo.state.value.lastPausedStudentId)
+    }
+
+    @Test
+    fun `starting a lesson empties the draft and keeps the notes for reuse`() {
+        val repo = LessonRepository()
+        repo.setNotes("Earth's seasons come from its tilt.")
+        repo.startLesson(StudentId.JUNO, deck)
+        assertEquals("", repo.notes)
+        assertEquals(TaughtNotes("Earth's seasons come from its tilt.", "Photosynthesis"), repo.state.value.lastTaught)
     }
 }

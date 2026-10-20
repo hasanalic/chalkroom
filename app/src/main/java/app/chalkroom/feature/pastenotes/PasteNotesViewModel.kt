@@ -18,7 +18,9 @@ import kotlinx.coroutines.launch
 /** [preselected] is set when coming from "Teach Mira something else": Continue skips the choice. */
 class PasteNotesViewModel(preselected: StudentId?, private val repository: LessonRepository) : ViewModel() {
 
-    private val _state = MutableStateFlow(UiState(notes = repository.notes, preselected = preselected))
+    private val _state = MutableStateFlow(
+        UiState(notes = repository.notes, preselected = preselected, lastTopic = repository.state.value.lastTaught?.topicTitle),
+    )
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private val _effects = Channel<UiEffect>(Channel.BUFFERED)
@@ -29,6 +31,11 @@ class PasteNotesViewModel(preselected: StudentId?, private val repository: Lesso
             is UiEvent.NotesChanged -> {
                 _state.update { it.copy(notes = event.notes) }
                 repository.setNotes(event.notes)
+            }
+            UiEvent.UseLastNotes -> {
+                val last = repository.state.value.lastTaught ?: return
+                _state.update { it.copy(notes = last.notes) }
+                repository.setNotes(last.notes)
             }
             UiEvent.Continue -> {
                 val s = _state.value

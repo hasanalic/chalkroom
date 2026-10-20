@@ -3,9 +3,13 @@ package app.chalkroom.server
 import app.chalkroom.server.ai.AiUnavailable
 import app.chalkroom.server.ai.GeminiClient
 import app.chalkroom.server.ai.MisconceptionGenerator
+import app.chalkroom.server.ai.GeneratedDeck
+import app.chalkroom.server.ai.JudgeVerdict
+import app.chalkroom.server.ai.TurnInput
 import app.chalkroom.server.ai.TurnJudge
 import app.chalkroom.shared.ErrorBody
 import app.chalkroom.shared.ErrorCodes
+import app.chalkroom.shared.StudentId
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -37,7 +41,14 @@ fun Application.module(config: Config) {
     val gemini = GeminiClient(config.geminiApiKey)
     val generator = MisconceptionGenerator(gemini, config.gen)
     val judge = TurnJudge(gemini, config.turn)
+    serve(generate = generator::generate, judge = judge::judge)
+}
 
+/** Everything but the AI clients, so tests can drive the real routes with stand-ins. */
+fun Application.serve(
+    generate: suspend (notes: String, studentId: StudentId) -> GeneratedDeck,
+    judge: suspend (TurnInput) -> JudgeVerdict,
+) {
     install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; explicitNulls = true }) }
     install(CallLogging)
     install(StatusPages) {
@@ -62,7 +73,7 @@ fun Application.module(config: Config) {
             requestKey { it.clientIp() }
         }
     }
-    configureRoutes(generator, judge)
+    configureRoutes(generate, judge)
 }
 
 /** Railway sits behind a proxy, so prefer the first X-Forwarded-For hop. */

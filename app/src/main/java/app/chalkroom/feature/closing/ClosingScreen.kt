@@ -36,6 +36,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -272,17 +275,37 @@ private fun Notebook(topicTitle: String, color: Color, shade: Color, closed: Boo
                         .padding(12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        topicTitle,
-                        style = Chalkroom.type.title.copy(color = colors.ink, fontSize = 15.sp, lineHeight = 19.sp, hyphens = Hyphens.Auto, lineBreak = LineBreak.Heading),
-                        textAlign = TextAlign.Center,
-                        maxLines = 4,
-                    )
+                    CoverTitle(topicTitle)
                 }
             }
         }
     }
 }
+
+/** Breaks only between words: the size steps down until the longest word fits the cover on one line. */
+@Composable
+private fun CoverTitle(topicTitle: String) {
+    val measurer = rememberTextMeasurer()
+    BoxWithConstraints(contentAlignment = Alignment.Center) {
+        val base = Chalkroom.type.title.copy(color = Chalkroom.colors.ink, hyphens = Hyphens.None, lineBreak = LineBreak.Heading)
+        val longest = remember(topicTitle) { topicTitle.split(Regex("\\s+")).maxByOrNull { it.length }.orEmpty() }
+        val width = constraints.maxWidth
+        val size = remember(longest, width, base) {
+            COVER_SIZES.firstOrNull { sp ->
+                measurer.measure(longest, base.copy(fontSize = sp.sp), maxLines = 1, softWrap = false).size.width <= width
+            } ?: COVER_SIZES.last()
+        }
+        Text(
+            topicTitle,
+            style = base.copy(fontSize = size.sp, lineHeight = (size + 4).sp),
+            textAlign = TextAlign.Center,
+            maxLines = 4,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+private val COVER_SIZES = listOf(15, 14, 13, 12, 11, 10)
 
 @Composable
 private fun Page(modifier: Modifier) {

@@ -1,11 +1,13 @@
 package app.chalkroom.feature.pastenotes
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -32,6 +34,7 @@ import app.chalkroom.shared.NoteLimits
 import app.chalkroom.shared.StudentId
 import app.chalkroom.ui.components.Ledge
 import app.chalkroom.ui.components.PrimaryButton
+import app.chalkroom.ui.components.QuietButton
 import app.chalkroom.ui.theme.Chalkroom
 import app.chalkroom.ui.theme.ChalkroomTheme
 import java.text.NumberFormat
@@ -107,19 +110,32 @@ fun PasteNotesContent(state: UiState, onEvent: (UiEvent) -> Unit) {
                 },
             )
         }
-        Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 10.dp).height(52.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = when {
-                    state.tooLong -> "A little too much for one go. Trim it to continue."
-                    state.tooShort && state.notes.isNotBlank() -> "A little more, please. Notes need about ${NoteLimits.MIN_CHARS} characters to learn from."
-                    state.notes.isBlank() -> " "
-                    else -> amountLine(state.length)
-                },
-                style = type.label,
-                textAlign = TextAlign.Center,
-            )
-            if (state.notes.isNotBlank()) {
-                Text("${count(state.length)} / ${count(NoteLimits.MAX_CHARS)} characters", style = type.small, modifier = Modifier.padding(top = 2.dp))
+        // Grows with its lines instead of a fixed height, so the count never slides under the button.
+        Column(
+            Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 10.dp).heightIn(min = 52.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            if (state.offerLastNotes) {
+                QuietButton(
+                    text = "Use your notes on ${state.lastTopic} again",
+                    onClick = { onEvent(UiEvent.UseLastNotes) },
+                    modifier = Modifier.testTag("useLastNotes"),
+                )
+            } else {
+                Text(
+                    text = when {
+                        state.tooLong -> "A little too much for one go. Trim it to continue."
+                        state.tooShort && state.notes.isNotBlank() -> "A little more, please. Notes need about ${NoteLimits.MIN_CHARS} characters to learn from."
+                        state.notes.isBlank() -> " "
+                        else -> amountLine(state.length)
+                    },
+                    style = type.label,
+                    textAlign = TextAlign.Center,
+                )
+                if (state.notes.isNotBlank()) {
+                    Text("${count(state.length)} / ${count(NoteLimits.MAX_CHARS)} characters", style = type.small, modifier = Modifier.padding(top = 2.dp))
+                }
             }
         }
         PrimaryButton(
@@ -134,13 +150,14 @@ fun PasteNotesContent(state: UiState, onEvent: (UiEvent) -> Unit) {
 
 private val SHEET_PAD = 22.dp
 
-/** How much is there, as a fact about a person reading it. */
-private fun amountLine(chars: Int): String = when {
-    chars <= 700 -> "A two-minute read"
-    chars <= 2_500 -> "About one sitting"
-    chars <= 5_000 -> "A long sitting"
-    else -> "An evening's reading"
+/** How much is there, as reading time for a person: about [CHARS_PER_MINUTE] characters a minute. */
+internal fun amountLine(chars: Int): String = when (val minutes = (chars + CHARS_PER_MINUTE / 2) / CHARS_PER_MINUTE) {
+    0 -> "Under a minute to read"
+    1 -> "About a minute to read"
+    else -> "About $minutes minutes to read"
 }
+
+private const val CHARS_PER_MINUTE = 1_100
 
 private fun count(n: Int) = NumberFormat.getIntegerInstance(java.util.Locale.US).format(n)
 

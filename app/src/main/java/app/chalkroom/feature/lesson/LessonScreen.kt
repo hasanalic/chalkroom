@@ -496,5 +496,5 @@ private fun LessonPreview() = ChalkroomTheme {
 @Preview(showBackground = true, heightDp = 760)
 @Composable
 private fun LessonRevealedPreview() = ChalkroomTheme {
-    LessonContent(UiState(lesson = LessonLogic.revealAnswer(previewLesson)), {})
+    LessonContent(UiState(lesson = LessonLogic.revealAnswer(previewLesson, StudentCatalog[previewLesson.studentId].answerLine)), {})
 }
