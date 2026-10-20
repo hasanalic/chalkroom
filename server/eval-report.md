@@ -80,12 +80,10 @@ None in this run.
 
 ## 2. Say-rules
 
-Thresholds: overall ≥ 90% of replies; "pushback never contains or paraphrases the refutation" = 100%; chalk lines ≥ 90% of acks.
+Thresholds: overall ≥ 90% of replies; "pushback never contains or paraphrases the refutation" = 100%.
 
 - Overall: 30/30 = 100.0% ✓
 - No answer leak in pushbacks: 15/15 = 100.0% ✓
-- Chalk lines: 14/15 = 93.3% ✓
-- Chalk lines in only the user's words: 15/15; with belief words: 0; with refutation words: 0
 
 Pushbacks (not addressed): no answer leak or paraphrase, something to answer. 
 Acknowledgments (addressed): ≤ 2 sentences, reuse the user's words, no question (string check: no "?"). 
@@ -129,25 +127,37 @@ All: no evaluation words (string check, English only), no praise/grading (grader
 None in this run.
 
 
-Chalk lines (acks): present, 4..8 words, no first/second person (English only), nothing added, no belief or refutation words, lesson language.
+## 2b. Chalk lines
+
+Threshold: chalk lines ≥ 90% of acks.
+
+- Grader catches lost letters (“isik enerjisine ihtiyac vardir” flagged, “ışık enerjisine ihtiyaç vardır” not): ✓
+- Chalk lines: 18/18 = 100.0% ✓
+- Chalk lines in only the user's words: 18/18; with belief words: 0; with refutation words: 0
+- Non-English chalk lines with all their letters: 6/6
+
+Chalk lines (acks): present, 4..8 words, no first/second person (English only), nothing added, no belief or refutation words, lesson language with its own letters.
 
 | Case | Run | Pass | Chalk line / problems |
 |---|---|---|---|
 | Precise, belief words not used | 1 | ✓ | chlorophyll catches the light energy |
 | Precise, belief words not used | 2 | ✓ | chlorophyll catches the light energy |
 | Precise, belief words not used | 3 | ✓ | chlorophyll catches the light energy |
-| Hasty shorthand, precise | 1 | ✓ | Earth tilts and light hits more directly |
-| Hasty shorthand, precise | 2 | ✓ | earth tilts so light hits more direct |
-| Hasty shorthand, precise | 3 | ✓ | Earth tilts and light hits more direct |
-| Precise, oxygen from water | 1 | ✓ | oxygen comes from splitting water molecules |
+| Hasty shorthand, precise | 1 | ✓ | earth tilts and light hits more direct |
+| Hasty shorthand, precise | 2 | ✓ | earth tilts so the light hits |
+| Hasty shorthand, precise | 3 | ✓ | earth tilts so light hits more direct |
+| Precise, oxygen from water | 1 | ✓ | light energy splits the water molecules |
 | Precise, oxygen from water | 2 | ✓ | light energy splits the water molecules |
 | Precise, oxygen from water | 3 | ✓ | light energy splits the water molecules |
-| Clearly precise | 1 | ✓ | plants need light energy to make glucose |
-| Clearly precise | 2 | ✓ | plants need light energy to make glucose |
-| Clearly precise | 3 | ✗ | plants need light energy to combine water and carbon dioxide — 10 words; (none) |
+| Clearly precise | 1 | ✓ | plants need light energy to combine |
+| Clearly precise | 2 | ✓ | plant needs light energy to combine |
+| Clearly precise | 3 | ✓ | plants need light energy to combine |
+| Turkish, typed without Turkish letters | 1 | ✓ | glikoz yapması için ışık enerjisi lazım |
+| Turkish, typed without Turkish letters | 2 | ✓ | klorofilin yakaladığı ışık enerjisi lazım |
+| Turkish, typed without Turkish letters | 3 | ✓ | glikoz yapması için ışık enerjisi lazım |
 | Turkish, precise | 1 | ✓ | klorofilin emdiği ışık enerjisine ihtiyaç var |
-| Turkish, precise | 2 | ✓ | Klorofilin emdiği ışık enerjisi gerekiyor |
-| Turkish, precise | 3 | ✓ | isik enerjisine ihtiyac vardir |
+| Turkish, precise | 2 | ✓ | klorofilin emdiği ışık enerjisine ihtiyaç vardır |
+| Turkish, precise | 3 | ✓ | klorofilin emdiği ışık enerjisine ihtiyaç vardır |
 
 ## Thresholds and known limitations
 
@@ -158,7 +168,7 @@ Full run once after Juno's flaw changed from "reversed cause and effect" to "wro
 | Judge consistency | 11/11 cases 3/3 | all 3/3 | ✓ |
 | Say-rules overall | 30/30 = 100% | ≥ 90% | ✓ |
 | Say-rule: pushback never states or paraphrases the refutation | 15/15 = 100% | 100% | ✓ |
-| Chalk lines (4–8 words, user's own words, lesson language) | 14/15 = 93.3% | ≥ 90% | ✓ |
+| Chalk lines (4–8 words, user's own words, lesson language with its own letters) | 18/18 = 100% (3 runs: 17, 17, 18 of 18) | ≥ 90% | ✓ |
 | Flaw shaping (majority vote) | 25/27 = 92.6% | ≥ 80% | ✓ |
 | Juno | 9/9 | — | ✓ |
 | Mira | 7/9 = 77.8% | ≥ 7/8 (87.5%) | ✗ |
@@ -167,7 +177,9 @@ Full run once after Juno's flaw changed from "reversed cause and effect" to "wro
 
 ### Known limitations
 
-- **Chalk lines (judge + say-rules rerun after `chalkLine` was added; flaw shaping not rerun, its prompt is untouched).** Three ack cases were added for the board (hasty shorthand, belief words the user didn't say, oxygen from water). The grader found 15/15 lines in only the user's words. Read by hand, one leans on the refutation's phrasing: “oxygen comes from splitting water molecules” where the user wrote “it's from the water… light energy splits the water molecules”. One line ran 10 words (“plants need light energy to combine water and carbon dioxide”); the server still passes up to 10, and the eval holds the model to 4–8. One Turkish line came back without diacritics (“isik enerjisine ihtiyac vardir”), which the grader doesn't catch. A 9th–10th word per line came up in 2/15 with a stricter “count the words” rule and 1–2/15 when the line was a capped word list (which also read telegraphic), so the prompt now asks for about 6 words.
+- **Chalk lines (judge + say-rules rerun after `chalkLine` was added; flaw shaping not rerun, its prompt is untouched).** Three ack cases were added for the board (hasty shorthand, belief words the user didn't say, oxygen from water). The grader found 15/15 lines in only the user's words. Read by hand, one leans on the refutation's phrasing: “oxygen comes from splitting water molecules” where the user wrote “it's from the water… light energy splits the water molecules”. One line ran 10 words (“plants need light energy to combine water and carbon dioxide”); the server still passes up to 10, and the eval holds the model to 4–8. One Turkish line came back without its letters (“isik enerjisine ihtiyac vardir”); that is now fixed, see below. A 9th–10th word per line came up in 2/15 with a stricter “count the words” rule and 1–2/15 when the line was a capped word list (which also read telegraphic), so the prompt now asks for about 6 words.
+
+- **Chalk lines keep the language's letters (only `SayRulesEval.chalk*` rerun; judge, say-rules replies and flaw shaping not rerun).** The grader gained `missingLetters`, and the test first checks the grader itself: “isik enerjisine ihtiyac vardir” must be flagged and “ışık enerjisine ihtiyaç vardır” not (✓ every run). A Turkish ack typed without Turkish letters was added (“Hayir… yapmasi icin… isik enerjisi lazim”). The prompt rule alone (letters in the main instruction, the schema description and a separate bullet with off-topic examples) still let the turn model copy the plain typing in 1–2 of 3 lines for that case. So the server now respells a line in a lettered language that comes back in plain a–z: one short extra call, kept only if nothing but letters changed (folded to a–z it must match word for word), and any failure keeps the line as it was. With it, non-English lines kept their letters 6/6 in each of 3 runs. Misses in those runs were length: “ışık enerjisi lazım” (3 words) and one 9-word English line.
 
 - **Mira 7/9**, same as the previous accepted run; Mira's prompt is unchanged. One miss is now graded CAUSE (“…just because it is a ventricle”), one CONFUSION (movement vs shift of supply).
 - **Juno still slips a reversal in sometimes.** The grader counts these as CAUSE, but by the learner's rule they are the result named as the cause: supply_demand “the supply curve shifts to the right because the equilibrium price falls” and “a shortage appears because the price of a good rises”. photosynthesis “chlorophyll absorbs light energy because the soil supplies water” links two unrelated facts. On the seasons notes, two decks each led with real learner mistakes (closest to the Sun → summer; longer days alone, not the angle), and each ended with “the equinox happens because day and night become equal”, which the prompt names as backwards but the model keeps writing.

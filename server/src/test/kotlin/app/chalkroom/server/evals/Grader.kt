@@ -25,6 +25,7 @@ data class ChalkGrade(
     val usesRefutationWords: Boolean,
     val usesBeliefWords: Boolean,
     val wrongLanguage: Boolean,
+    val missingLetters: Boolean,
     val reason: String,
 )
 
@@ -94,7 +95,7 @@ object Grader {
         }
 
     private val chalkSchema = obj(
-        linkedMapOf("addsIdea" to bool(), "usesRefutationWords" to bool(), "usesBeliefWords" to bool(), "wrongLanguage" to bool(), "reason" to str()),
+        linkedMapOf("addsIdea" to bool(), "usesRefutationWords" to bool(), "usesBeliefWords" to bool(), "wrongLanguage" to bool(), "missingLetters" to bool(), "reason" to str()),
     )
 
     /** The board line must be the user's own point: nothing added, nothing from the refutation. */
@@ -121,6 +122,9 @@ object Grader {
                     - usesBeliefWords: true if the chalk line uses a word or phrase from the student's belief
                       that the user did not use (fixed spelling or word forms of the user's own words don't count).
                     - wrongLanguage: true if the chalk line is not in the lesson language.
+                    - missingLetters: true if any word is spelled without a letter the lesson language's correct spelling needs,
+                      written as plain a–z instead (Turkish "isik" for "ışık", "ihtiyac" for "ihtiyaç", "vardir" for "vardır";
+                      German "fur" for "für"). This counts even if the user typed it that way. False for English.
                     - reason: one short sentence explaining any true.
                 """.trimIndent(),
                 schema = chalkSchema,

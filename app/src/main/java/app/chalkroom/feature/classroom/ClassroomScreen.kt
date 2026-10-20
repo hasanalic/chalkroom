@@ -149,7 +149,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
                 .align(Alignment.TopCenter)
                 .padding(top = top + 20.dp)
                 .width(w * 0.64f)
-                .height(h * 0.2f)
+                .height(h * 0.275f)
                 .graphicsLayer {
                     alpha = boardIn.value
                     translationY = -14.dp.toPx() * (1f - boardIn.value)

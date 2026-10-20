@@ -22,7 +22,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /** Where the wall meets the floor, as a share of the screen height. */
-const val WALL_SHARE = 0.45f
+const val WALL_SHARE = 0.38f
 
 /** Where the floor has faded into the page under the button. */
 private const val FADE_FROM = 0.82f
