@@ -2,13 +2,11 @@ package app.chalkroom.feature.classroom
 
 import app.chalkroom.data.LessonRepository
 import app.chalkroom.data.RoomLights
-import app.chalkroom.feature.classroom.ClassroomContract.UiEffect
 import app.chalkroom.feature.classroom.ClassroomContract.UiEvent
 import app.chalkroom.shared.StudentId
 import app.chalkroom.students.StudentCatalog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -28,11 +26,7 @@ import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ClassroomRoomTest {
-    private class FakeLights(override var on: Boolean) : RoomLights {
-        override fun switchOn() {
-            on = true
-        }
-    }
+    private class FakeLights(override var on: Boolean) : RoomLights
 
     @BeforeEach
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -41,16 +35,37 @@ class ClassroomRoomTest {
     fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun `first open is dark and the switch turns the lights on for good`() = runTest {
+    fun `each tap on the switch flips the lights and remembers them`() = runTest {
         val lights = FakeLights(on = false)
         val vm = ClassroomViewModel(LessonRepository(), lights)
         assertFalse(vm.state.value.lightsOn)
 
+        listOf(true, false, true, false, true).forEach { expected ->
+            vm.onEvent(UiEvent.SwitchTapped)
+            assertEquals(expected, vm.state.value.lightsOn)
+            assertEquals(expected, lights.on)
+        }
+    }
+
+    @Test
+    fun `the room opens as the switch was left`() = runTest {
+        val lights = FakeLights(on = true)
+        ClassroomViewModel(LessonRepository(), lights).onEvent(UiEvent.SwitchTapped)
+        assertFalse(ClassroomViewModel(LessonRepository(), lights).state.value.lightsOn)
+
+        ClassroomViewModel(LessonRepository(), lights).onEvent(UiEvent.SwitchTapped)
+        assertTrue(ClassroomViewModel(LessonRepository(), lights).state.value.lightsOn)
+    }
+
+    @Test
+    fun `switching off ends a tap bubble at once`() = runTest {
+        val vm = ClassroomViewModel(LessonRepository(), FakeLights(on = true))
+        vm.onEvent(UiEvent.StudentTapped(StudentId.MIRA))
+        assertTrue(vm.state.value.bubble != null)
+
         vm.onEvent(UiEvent.SwitchTapped)
 
-        assertTrue(vm.state.value.lightsOn)
-        assertTrue(lights.on)
-        assertTrue(ClassroomViewModel(LessonRepository(), lights).state.value.lightsOn)
+        assertNull(vm.state.value.bubble)
     }
 
     @Test
@@ -79,15 +94,5 @@ class ClassroomRoomTest {
         assertTrue(vm.state.value.bubble != null)
         advanceTimeBy(ClassroomViewModel.BUBBLE_MS + 1)
         assertNull(vm.state.value.bubble)
-    }
-
-    @Test
-    fun `the switch with the lights on only flickers`() = runTest {
-        val vm = ClassroomViewModel(LessonRepository(), FakeLights(on = true))
-
-        vm.onEvent(UiEvent.SwitchTapped)
-
-        assertEquals(UiEffect.Flicker, vm.effects.first())
-        assertTrue(vm.state.value.lightsOn)
     }
 }

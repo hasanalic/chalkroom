@@ -43,11 +43,13 @@ class ClassroomViewModel(private val repository: LessonRepository, private val l
         when (event) {
             UiEvent.TeachSomething -> send(UiEffect.OpenPasteNotes)
             UiEvent.SwitchTapped -> {
-                if (lightsOn.value) {
-                    send(UiEffect.Flicker)
-                } else {
-                    lights.switchOn()
-                    lightsOn.value = true
+                val on = !lightsOn.value
+                lights.on = on
+                lightsOn.value = on
+                // In the dark nobody talks: a tap bubble ends at once.
+                if (!on) {
+                    bubbleJob?.cancel()
+                    bubble.value = null
                 }
             }
             UiEvent.BoardTapped -> state.value.board?.let { send(UiEffect.OpenLesson(it.studentId)) }

@@ -125,17 +125,15 @@ fun ClassroomScreen(
     viewModel: ClassroomViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var flicks by remember { mutableIntStateOf(0) }
     LaunchedEffect(viewModel) {
         viewModel.effects.collect {
             when (it) {
                 UiEffect.OpenPasteNotes -> onTeachSomething()
                 is UiEffect.OpenLesson -> onResumeLesson(it.studentId)
-                UiEffect.Flicker -> flicks++
             }
         }
     }
-    ClassroomContent(state, viewModel::onEvent, flicks)
+    ClassroomContent(state, viewModel::onEvent)
 }
 
 /**
@@ -179,12 +177,20 @@ private const val SWITCH_Y = 0.325f
 /** How deep the navy wash is with the lights off: dark, but the room still faintly there. */
 private const val NIGHT_ALPHA = 0.8f
 
-/** Waking order after the lights come on, one by one. */
+/** Waking order after the lights come on, one by one; they doze off the other way round. */
 private val wakeOrder = listOf(StudentId.JUNO, StudentId.MIRA, StudentId.PIP)
 
 /** The entrance stagger plays once per process (cold start), not on every return to the room. */
 private object Entrance {
     var played = false
+}
+
+/**
+ * Whether the button still waits for the lights: the app opened on a dark room and they haven't
+ * been on since. Switching off later, or coming back to a dark room, keeps the button.
+ */
+private object ButtonReveal {
+    var pending: Boolean? = null
 }
 
 /**
@@ -204,26 +210,23 @@ private const val NOTICE_GAP_MS = 120L
 private const val NOTICE_AGAIN_MS = 20_000L
 private val noticeOrder = listOf(StudentId.MIRA, StudentId.JUNO, StudentId.PIP)
 
-/**
- * [flicks] counts taps on the switch with the lights already on; each plays one quick flicker.
- */
 @Composable
-fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0) {
+fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
     val reduced = Chalkroom.reducedMotion
     val colors = Chalkroom.colors
     val haptics = LocalHapticFeedback.current
 
-    // Lights off (first open ever): the room sits in the dark, students asleep, until the switch.
-    val darkAtOpen = remember { !state.lightsOn && !reduced }
+    // Lights off (the first open ever, or as the switch was left): the room sits in the dark,
+    // students asleep, until the switch. If the app opened dark, there's no button until then.
+    val darkAtOpen = remember { !state.lightsOn }
+    if (ButtonReveal.pending == null) ButtonReveal.pending = darkAtOpen
     val dark = remember { Animatable(if (darkAtOpen) 1f else 0f) }
     val warm = remember { Animatable(0f) }
-    val flick = remember { Animatable(1f) }
     val toggle = remember { Animatable(if (darkAtOpen) 0f else 1f) }
     var awake by remember { mutableStateOf(if (darkAtOpen) emptySet() else StudentId.entries.toSet()) }
-    var buttonShown by remember { mutableStateOf(!darkAtOpen) }
-    val buttonIn = remember { Animatable(if (darkAtOpen) 0f else 1f) }
+    var buttonShown by remember { mutableStateOf(ButtonReveal.pending != true) }
+    val buttonIn = remember { Animatable(if (buttonShown) 1f else 0f) }
     var settled by remember { mutableStateOf(!darkAtOpen) }
-    var glancing by remember { mutableStateOf(false) }
     // Each bump is Pip's wave at you: when the room first appears (walking in, or the lights coming on).
     var pipWaves by remember { mutableIntStateOf(0) }
     // When Pip may next throw paper at the bin (elapsed realtime): a few seconds after the entering
@@ -233,17 +236,57 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
     // the last scene (or tap bubble) ends; null while one plays or before the visit's entry scene.
     val player = remember { ScenePlayer() }
     var sceneJob by remember { mutableStateOf<Job?>(null) }
+    var entryJob by remember { mutableStateOf<Job?>(null) }
     var ambientDue by remember { mutableStateOf<Long?>(null) }
+    // Each tap on the switch flips it. A new tap cancels whatever sequence is still running and
+    // starts the other one from wherever the room is, so the latest tap always wins.
     LaunchedEffect(state.lightsOn) {
-        if (!state.lightsOn || dark.value == 0f) return@LaunchedEffect
+        if (!state.lightsOn) {
+            // Lights off: the room goes quiet at once, dims, and the students doze off one by one.
+            settled = false
+            entryJob?.cancel()
+            sceneJob?.cancel()
+            ambientDue = null
+            throwAt = null
+            warm.snapTo(0f)
+            // A button caught rising in finishes; one that never came stays away.
+            if (buttonShown) buttonIn.snapTo(1f)
+            if (reduced) {
+                toggle.snapTo(0f)
+                dark.snapTo(1f)
+                awake = emptySet()
+                return@LaunchedEffect
+            }
+            launch { toggle.animateTo(0f, tween(110, easing = Dart)) }
+            launch { dark.animateTo(1f, tween(DIM_MS, easing = EaseInOutSine)) }
+            delay(DOZE_AFTER_MS)
+            wakeOrder.reversed().forEach {
+                awake = awake - it
+                delay(DOZE_GAP_MS)
+            }
+            return@LaunchedEffect
+        }
+        if (dark.value == 0f && settled) return@LaunchedEffect
+        if (reduced) {
+            toggle.snapTo(1f)
+            dark.snapTo(0f)
+            awake = StudentId.entries.toSet()
+            buttonShown = true
+            ButtonReveal.pending = false
+            buttonIn.snapTo(1f)
+            settled = true
+            ambientDue = SystemClock.elapsedRealtime() + AMBIENT_AFTER_MS
+            return@LaunchedEffect
+        }
         // ~600 ms warm-up with two soft dips, then the students wake one by one, then the button.
         launch { toggle.animateTo(1f, tween(110, easing = Dart)) }
         launch {
+            val from = dark.value
             dark.animateTo(
                 0f,
                 keyframes {
                     durationMillis = 600
-                    1f at 0 using EaseOutCubic
+                    from at 0 using EaseOutCubic
                     0.3f at 130 using EaseInOutSine
                     0.6f at 220 using EaseInOutSine
                     0.15f at 340 using EaseInOutSine
@@ -263,6 +306,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
         }
         delay(BUTTON_AT_MS - 650 - wakeOrder.size * WAKE_GAP_MS)
         buttonShown = true
+        ButtonReveal.pending = false
         buttonIn.animateTo(1f, settle())
         delay(1_000)
         settled = true
@@ -270,20 +314,6 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
         throwAt = SystemClock.elapsedRealtime() + THROW_AFTER_MS
         // No entry scene after the wake-up: the ambient clock starts here.
         ambientDue = SystemClock.elapsedRealtime() + AMBIENT_AFTER_MS
-    }
-    LaunchedEffect(flicks) {
-        if (flicks == 0 || reduced) return@LaunchedEffect
-        launch {
-            toggle.animateTo(0.25f, tween(70))
-            toggle.animateTo(1f, tween(120, easing = Dart))
-        }
-        launch {
-            flick.snapTo(0f)
-            flick.animateTo(1f, tween(240))
-        }
-        glancing = true
-        delay(900)
-        glancing = false
     }
 
     val life = rememberRoomLife(enabled = !reduced && settled)
@@ -329,7 +359,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
     LaunchedEffect(visible) {
         if (!visible) return@LaunchedEffect
         try {
-            if (lightsOn && settled) {
+            if (lightsOn && settled) entryJob = launch {
                 ambientDue = null
                 life.quiet = true
                 try {
@@ -402,7 +432,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
         if (!visible || !settled || !state.lightsOn) return@LaunchedEffect
         delay(400)
         while (true) {
-            snapshotFlow { life.quiet || life.busy || bubbleNow != null || glancing }.first { !it }
+            snapshotFlow { life.quiet || life.busy || bubbleNow != null }.first { !it }
             val now = SystemClock.elapsedRealtime()
             val learned = learnedNow
             val due = throwAt
@@ -552,7 +582,6 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
                 sceneHops = player.hops.getValue(id),
                 sceneNods = player.nods.getValue(id),
                 startle = settled,
-                glanceAtSwitch = glancing,
                 readAt = reading[id] ?: if (id == StudentId.PIP && pipWatching) towardBin else null,
                 headX = reading[id]?.let { boardLook.getValue(id).x * 2.5f },
                 slowNodTick = slowNods.getValue(id),
@@ -597,7 +626,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
         )
 
         // The night: a deep navy wash over the room (it takes taps while the lights are off), and a
-        // warm flush as they come on. A later flicker is one quick soft dip.
+        // warm flush as they come on.
         Canvas(
             Modifier
                 .fillMaxSize()
@@ -609,9 +638,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
                     },
                 ),
         ) {
-            val dip = if (flick.value < 1f) 0.45f * sin(PI.toFloat() * flick.value) else 0f
-            val night = (dark.value + dip).coerceIn(0f, 1f)
-            if (night > 0f) drawRect(colors.night.copy(alpha = NIGHT_ALPHA * night))
+            if (dark.value > 0f) drawRect(colors.night.copy(alpha = NIGHT_ALPHA * dark.value))
             if (warm.value > 0f) drawRect(colors.switchGlow.copy(alpha = 0.08f * warm.value))
         }
 
@@ -619,7 +646,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
         LightSwitch(
             on = toggle.asState(),
             dark = dark.asState(),
-            glowing = darkAtOpen && !state.lightsOn,
+            glowing = !state.lightsOn && !reduced,
             onTap = {
                 haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
                 onEvent(UiEvent.SwitchTapped)
@@ -648,6 +675,9 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
 }
 
 private const val WAKE_GAP_MS = 260L
+private const val DIM_MS = 450
+private const val DOZE_AFTER_MS = 250L
+private const val DOZE_GAP_MS = 600L
 private const val AMBIENT_AFTER_MS = 10_000L
 private const val ENTRY_AFTER_MS = 500L
 private const val ENTRY_AFTER_STAGGER_MS = 1_100L
@@ -1037,9 +1067,6 @@ private fun Board(board: ClassroomContract.Board?, learned: ClassroomContract.Le
     }
 }
 
-/** Where the eyes go when the switch flickers: up and to the left, towards it. */
-private val towardSwitch = Offset(-0.05f, -0.04f)
-
 /**
  * One student at their desk, in their resting pose (Mira's head tilted at you, Juno's hat askew and
  * her eyes on the board with a pencil ready, Pip big and up high behind his desk). Each bump of [waveTick],
@@ -1057,7 +1084,6 @@ private fun Seat(
     modifier: Modifier = Modifier,
     waveTick: Int = 0,
     asleep: Boolean = false,
-    glanceAtSwitch: Boolean = false,
     noticeTick: Int = 0,
     callTick: Int = 0,
     startle: Boolean = false,
@@ -1123,7 +1149,6 @@ private fun Seat(
         notebookOpen = seat.paused,
         // In a scene, the scene says where they look (null: the face's own look).
         lookAt = when {
-            glanceAtSwitch -> towardSwitch
             pose != null -> pose.lookAt
             else -> readAt ?: kind?.lookAt ?: restGaze[id]
         },
@@ -1234,8 +1259,11 @@ private fun rememberRoomLife(enabled: Boolean): RoomLifeState {
             val kind = lifeBag.filter { it != last }.random()
             last = kind
             state.start(kind)
-            delay(LIFE_MS)
-            state.stop()
+            try {
+                delay(LIFE_MS)
+            } finally {
+                state.stop()
+            }
         }
     }
     return state
