@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -167,50 +168,53 @@ fun LessonContent(state: UiState, onEvent: (UiEvent) -> Unit) {
     var historyOpen by remember { mutableStateOf(false) }
 
     // The board runs up under the status bar; only the sides and bottom (nav bar, keyboard) pad the screen.
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(colors.page)
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)),
-    ) {
+    Box(Modifier.fillMaxSize().background(colors.page)) {
         Column(
             Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 8.dp),
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)),
         ) {
-            Board(state, lesson, profile, onHistory = { historyOpen = true })
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 8.dp),
+            ) {
+                Board(state, lesson, profile, onHistory = { historyOpen = true })
 
-            Column(Modifier.padding(horizontal = 16.dp)) {
-                if (stuckChoice) {
-                    Spacer(Modifier.height(16.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        PrimaryButton("See the answer", { onEvent(UiEvent.SeeAnswer) }, Modifier.weight(1f))
-                        QuietButton("One last try", { onEvent(UiEvent.OneLastTry) }, Modifier.weight(1f))
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    if (stuckChoice) {
+                        Spacer(Modifier.height(16.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            PrimaryButton("See the answer", { onEvent(UiEvent.SeeAnswer) }, Modifier.weight(1f))
+                            QuietButton("One last try", { onEvent(UiEvent.OneLastTry) }, Modifier.weight(1f))
+                        }
+                    }
+                    if (revealed) {
+                        Spacer(Modifier.height(16.dp))
+                        AnswerCard(lesson.current?.refutation.orEmpty()) { onEvent(UiEvent.ContinueAfterAnswer) }
+                    }
+
+                    state.lastExplanation?.let {
+                        Spacer(Modifier.height(16.dp))
+                        YouCard(it)
                     }
                 }
-                if (revealed) {
-                    Spacer(Modifier.height(16.dp))
-                    AnswerCard(lesson.current?.refutation.orEmpty()) { onEvent(UiEvent.ContinueAfterAnswer) }
-                }
+            }
 
-                state.lastExplanation?.let {
-                    Spacer(Modifier.height(16.dp))
-                    YouCard(it)
-                }
+            if (!stuckChoice && !revealed) {
+                ExplainInput(
+                    state = state,
+                    name = profile.name,
+                    placeholder = if (LessonLogic.startOverHint(lesson)) "start from the beginning" else "Explain it to ${profile.name}…",
+                    locked = state.inputLocked || lesson.phase == ItemPhase.STUCK,
+                    onEvent = onEvent,
+                )
             }
         }
-
-        if (!stuckChoice && !revealed) {
-            ExplainInput(
-                state = state,
-                name = profile.name,
-                placeholder = if (LessonLogic.startOverHint(lesson)) "start from the beginning" else "Explain it to ${profile.name}…",
-                locked = state.inputLocked || lesson.phase == ItemPhase.STUCK,
-                onEvent = onEvent,
-            )
-        }
+        // Slate behind the status bar, so the board scrolled up (keyboard open) never runs under its icons.
+        Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(colors.board))
     }
 
     if (historyOpen && lesson.exchanges.isNotEmpty()) {
@@ -315,7 +319,7 @@ private fun Stage(state: UiState, lesson: Lesson, profile: StudentProfile) {
     Box(
         Modifier
             .fillMaxWidth()
-            .height(272.dp)
+            .height(BOARD_STAGE_H)
             .clipToBounds(),
         contentAlignment = Alignment.BottomEnd,
     ) {
@@ -326,7 +330,7 @@ private fun Stage(state: UiState, lesson: Lesson, profile: StudentProfile) {
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .fillMaxSize()
-                .padding(start = 18.dp, top = 16.dp, bottom = 12.dp + BUBBLE_OVERLAP, end = BOARD_STUDENT_W - 12.dp),
+                .padding(start = 18.dp, top = 16.dp, bottom = 12.dp + BUBBLE_OVERLAP, end = BOARD_STUDENT_END + BOARD_STUDENT_W - 18.dp),
         )
         StudentFigure(
             studentId = lesson.studentId,
@@ -341,14 +345,18 @@ private fun Stage(state: UiState, lesson: Lesson, profile: StudentProfile) {
             state.writing,
             enter = fadeIn(tween(200)),
             exit = fadeOut(tween(300)),
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = BOARD_STUDENT_W - 50.dp).offset(y = 14.dp - BUBBLE_OVERLAP),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = BOARD_STUDENT_END + BOARD_STUDENT_W * 2 / 3).offset(y = 11.dp - BUBBLE_OVERLAP),
         ) { NotePad() }
     }
 }
 
-/** The student stands to the right so the board's left keeps room for three chalk lines. */
-private val BOARD_STUDENT_W = 168.dp
-private val BOARD_STUDENT_END = 6.dp
+/**
+ * The student stands to the right so the board's left keeps room for three chalk lines. The end
+ * margin keeps her outermost mote (its arc reaches a little past her width) clear of the screen edge.
+ */
+private val BOARD_STUDENT_W = 210.dp
+private val BOARD_STUDENT_END = 18.dp
+private val BOARD_STAGE_H = 340.dp
 
 /**
  * The student's line chalked on the slate: a hand-drawn chalk outline with a notch pointing up at the
