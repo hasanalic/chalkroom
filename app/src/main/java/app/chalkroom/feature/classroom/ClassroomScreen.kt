@@ -16,6 +16,7 @@ import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
@@ -91,6 +92,7 @@ import app.chalkroom.feature.classroom.ClassroomContract.UiEvent
 import app.chalkroom.feature.classroom.ClassroomContract.UiState
 import app.chalkroom.shared.StudentId
 import app.chalkroom.students.Expression
+import app.chalkroom.students.FIGURE_ASPECT
 import app.chalkroom.students.Mote
 import app.chalkroom.students.StudentAtDesk
 import app.chalkroom.students.StudentCatalog
@@ -136,7 +138,7 @@ fun ClassroomScreen(
 
 /**
  * Where each seat sits: x and width as shares of the screen width, bottom as a share of its height.
- * [rise], [scale] and [overDesk] stage the student at it (see StudentAtDesk).
+ * [rise] and [scale] stage the student at it (see StudentAtDesk).
  */
 private data class SeatPlace(
     val x: Float,
@@ -144,16 +146,21 @@ private data class SeatPlace(
     val bottom: Float,
     val rise: Float = 0f,
     val scale: Float = 1f,
-    val overDesk: Boolean = false,
 ) {
     /** Seat height / seat width. */
     val aspect: Float get() = SEAT_ASPECT + rise
+
+    /** How far (seat widths) a bigger student's head pokes above the seat, with room for a hop: the tap area reaches up to cover it. */
+    val headroom: Float get() = if (scale > 1f) FIGURE_W * FIGURE_ASPECT * (scale - 1f) + FIGURE_W * scale * 0.06f else 0f
 }
+
+/** Figure width / seat width (see StudentAtDesk). */
+private const val FIGURE_W = 0.8f
 
 private val places = mapOf(
     StudentId.MIRA to SeatPlace(0.05f, 0.40f, 0.62f, rise = 0.07f), // back row, left, up higher
     StudentId.JUNO to SeatPlace(0.55f, 0.40f, 0.62f), // back row, right
-    StudentId.PIP to SeatPlace(0.27f, 0.46f, 0.845f, scale = 1.12f, overDesk = true), // front, big, over his desk
+    StudentId.PIP to SeatPlace(0.27f, 0.46f, 0.845f, rise = 0.07f, scale = 1.12f), // front, big, up high behind his desk
 )
 
 /** Resting poses, which every other move starts from and returns to. */
@@ -547,6 +554,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
                 slowNodTick = slowNods.getValue(id),
                 proud = id == proudId,
                 extraHops = if (id == StudentId.PIP) throwHops else 0,
+                headroom = seatW * place.headroom,
                 doodleStrokes = if (id == StudentId.MIRA) life.doodles else 0,
                 noticeTick = noticeTicks.getValue(id),
                 callTick = if (id == caller) callTick else 0,
@@ -555,7 +563,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
                     onEvent(UiEvent.StudentTapped(id))
                 },
                 modifier = Modifier
-                    .offset(x = w * place.x, y = h * place.bottom - seatW * place.aspect)
+                    .offset(x = w * place.x, y = h * place.bottom - seatW * (place.aspect + place.headroom))
                     .width(seatW)
                     .graphicsLayer {
                         alpha = enter
@@ -744,13 +752,11 @@ private fun faceRect(id: StudentId, w: Float, h: Float): Rect {
     val place = places.getValue(id)
     val seatW = w * place.width
     val seatTop = h * place.bottom - seatW * place.aspect
-    if (!place.overDesk) return Rect(w * place.x + seatW * 0.15f, seatTop + seatW * 0.27f, w * place.x + seatW * 0.85f, seatTop + seatW * 0.86f)
-    // Over the desk (see StudentAtDesk): the figure's base rests on the desk top.
-    val figW = seatW * 0.8f * place.scale
-    val deskTop = seatTop + seatW * (SEAT_ASPECT - 0.5f)
-    val figTop = deskTop + seatW * 0.5f * 0.2f - figW * 1.3f
+    // The figure's base sits where an unscaled one's would (see StudentAtDesk), so a bigger one reaches higher.
+    val figW = seatW * FIGURE_W * place.scale
+    val figTop = seatTop + seatW * FIGURE_W * FIGURE_ASPECT - figW * FIGURE_ASPECT
     val left = w * place.x + (seatW - figW) / 2f
-    return Rect(left + figW * 0.08f, figTop + figW * 0.42f, left + figW * 0.92f, figTop + figW * 1.2f)
+    return Rect(left + figW * 0.125f, figTop + figW * 0.3375f, left + figW * 0.875f, figTop + figW * 1.075f)
 }
 
 /**
@@ -1044,9 +1050,10 @@ private val towardSwitch = Offset(-0.05f, -0.04f)
 
 /**
  * One student at their desk, in their resting pose (Mira's head tilted at you, Juno's hat askew and
- * her eyes on the board with a pencil ready, Pip big and over his desk). Each bump of [waveTick],
+ * her eyes on the board with a pencil ready, Pip big and up high behind his desk). Each bump of [waveTick],
  * and his PIP_WAVE idle move, is Pip's wave: no arms, so his whole body sways side to side with a
- * hop and a friendly look at you. Not with animations removed.
+ * hop and a friendly look at you, still seated. The tap area reaches up over [SeatPlace.headroom], so
+ * a bigger student's head is tappable too. Not with animations removed.
  */
 @Composable
 private fun Seat(
@@ -1067,6 +1074,7 @@ private fun Seat(
     slowNodTick: Int = 0,
     proud: Boolean = false,
     extraHops: Int = 0,
+    headroom: Dp = 0.dp,
 ) {
     val kind = life?.kind
     val id = seat.studentId
@@ -1131,17 +1139,18 @@ private fun Seat(
         proud = proud || waving,
         rise = place.rise,
         figureScale = place.scale,
-        overDesk = place.overDesk,
         sway = sway.value,
         restTilt = if (id == StudentId.MIRA) MIRA_REST_TILT else 0f,
         hatTilt = if (id == StudentId.JUNO) JUNO_HAT_TILT else 0f,
         figureProp = if (id == StudentId.JUNO) ({ drawPencil(size.width, colors) }) else null,
-        modifier = modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            role = Role.Button,
-            onClick = onTap,
-        ),
+        modifier = modifier
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                role = Role.Button,
+                onClick = onTap,
+            )
+            .padding(top = headroom),
     )
 }
 
