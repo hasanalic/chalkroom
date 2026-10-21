@@ -46,16 +46,14 @@ One component, used unchanged on every screen.
 
 Top to bottom, in one scrollable column above the input:
 
-1. **Student card** (ledge in the student's colour, radius 24):
-   - Header strip, dark (`ink` background, white text): "Mira" on the left; on the right a small gold pill "3 exchanges" (opens the history sheet, appears from the first exchange). Under it the counter row: "what's left in Mira's head: 3" and the drain bar (white on `ink2` track).
-   - Stage: the student large (~180dp) with their motes, on the student's colour washed ~18% over cream.
-2. **Student line card:** a **dark** speech card (`ink` background, white text, headline 21sp, line height 28) with a small triangular notch on top pointing up at the student, and a `lavender2` ledge. New lines type in quickly (typewriter, ~20ms/char) and crossfade from the previous one.
+1. **Board** (edge to edge, no corners or ledge, running up under the status bar, whose icons go light on this screen): the slate holds everything about the student. At its top-left in chalk-white: "Mira", the small gold pill "3 exchanges" on the right (opens the history sheet, appears from the first exchange), and under it "what's left in Mira's head: 3". Then the stage: chalk lines on the left, the student large on the right with their motes.
+2. **Student line:** a chalk speech bubble on the slate below the stage: hand-drawn chalk-white outline, chalk-white Nunito (21sp, line height 28), its notch pointing up at the student's centre; the student stands just behind it. New lines type in quickly (typewriter, ~20ms/char) and crossfade from the previous one; long lines wrap and the board grows.
 3. **Your last explanation:** quieter, below it: a light card with a lavender ledge, "You" label in small muted text, the text in Lora italic.
 4. **Input** pinned at the bottom: white field with a 2dp `ink` border, radius 20, and a gold "Explain" button with its ledge. While waiting, the student looks up and to the side (thinking), the field is locked; no spinner.
-5. **Counter digit** doesn't tick: the old digit falls out of frame with weight, the new one drops in from above; the bar drains a touch slower than the digit.
+5. **Counter digit** doesn't tick: the old digit falls out of frame with weight, the new one drops in from above.
 6. **Clearing (keep the 900ms timings exactly):** the active mote holds still, fades from its centre outward, drifts into the eye, the eyes widen, the counter drops, then the student speaks and pulls out a small pad and scribbles abstract squiggles on it (never words), under ~1.2s.
 7. **Miss:** a short, per-student unconvinced reaction (Mira: tilts head and squints; Pip: quick bounce and a sideways look; Juno: slow lean back, eyes up). Never red, never a shake.
-8. **Stuck / answer:** the two buttons side by side under the line card: "See the answer" (gold) and "One last try" (white, ink outline). The answer card: light card, `line` border, small muted label "What's actually true", then the text, with a gold "Continue".
+8. **Stuck / answer:** the two buttons side by side under the board: "See the answer" (gold) and "One last try" (white, ink outline). The answer card: light card, `line` border, small muted label "What's actually true", then the text, with a gold "Continue".
 
 ## 3. Classroom (tier 1)
 
