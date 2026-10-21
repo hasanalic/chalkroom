@@ -76,6 +76,8 @@ private const val LAST_MOTE_SCALE = 1.25f
  * With a [lift] (figure widths, may be 0) the bust is drawn whole and uncropped, raised by that
  * much, so the screen around it decides where it is cut (leaning, hopping). [ears] pricks Mira's ears and
  * [hatLift] raises Juno's hat off her head. All three default to 0, which changes nothing.
+ * [restTilt] (degrees) tilts the head in a resting pose, and [hatTilt] (degrees) sets Juno's hat
+ * askew; every other move plays on top of them. Both default to 0, which changes nothing.
  */
 @Composable
 fun StudentFigure(
@@ -100,6 +102,8 @@ fun StudentFigure(
     lift: Float? = null,
     ears: Float = 0f,
     hatLift: Float = 0f,
+    restTilt: Float = 0f,
+    hatTilt: Float = 0f,
 ) {
     val profile = StudentCatalog[studentId]
     val colors = Chalkroom.colors
@@ -278,14 +282,14 @@ fun StudentFigure(
         // The bust runs past the bottom edge and is cropped there, so a tilt never lifts a corner.
         val sx = 1f - 0.006f * breath * (1f - z) - 0.012f * sleepBreath * z - 0.01f * nod.value - 0.015f * st
         val sy = 1f + 0.02f * breath * (1f - z) + 0.04f * sleepBreath * z - 0.03f * z + stretch - 0.03f * nod.value + re.stretch + 0.025f * hop.value + 0.06f * st + 0.03f * jt + 0.035f * pr
-        val headTurn = tilt + re.tilt + studentId.sleepTilt() * z + (glance.headX.value * (1f - lookW) + lookHead) * (1f - a) * 55f
+        val headTurn = restTilt + tilt + re.tilt + studentId.sleepTilt() * z + (glance.headX.value * (1f - lookW) + lookHead) * (1f - a) * 55f
         val whole = lift != null
         clipRect(top = if (whole) -2 * h else 0f, bottom = if (whole) 3 * h else h) { withTransform({
             translate(top = (-(lift ?: 0f) + nod.value * 0.02f + re.lift - 0.05f * hop.value + 0.03f * z - 0.02f * st - 0.03f * pk - 0.05f * jt - 0.02f * pr) * w)
             rotate(headTurn, Offset(w / 2, h))
             scale(sx * ln, sy * ln, Offset(w / 2, h))
         }) {
-            drawBust(studentId, profile.color, colors, outline, ears, whole, hatLift)
+            drawBust(studentId, profile.color, colors, outline, ears, whole, hatLift, hatTilt)
 
             // Eyes, with lids that come down from the top. Looking up at you wins over a glance.
             val gx = (glance.eyeX.value * (1f - lookW) + lookX * lookW) * (1f - a)
@@ -356,7 +360,7 @@ fun StudentFigure(
                     drawCircle(colors.page, ew * 0.18f * (eyeScale - 1f) * 3f, Offset(center.x - ew * 0.12f, center.y - eyeH * 0.22f))
                 }
             }
-            drawFront(studentId, profile.color, colors, outline, hatLift)
+            drawFront(studentId, profile.color, colors, outline, hatLift, hatTilt)
         } }
 
         // Motes: cream circles ringed in the student's shade, on an arc that clears the head.

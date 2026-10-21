@@ -121,11 +121,15 @@ object StudentShapes {
     private val JUNO_BRIM = Offset(0.49f, 0.715f)
     private const val JUNO_BRIM_TILT = -15f
 
+    /** How far an askew hat slides per degree of tilt (figure widths). */
+    private const val HAT_SHIFT = 0.003f
+
     /**
      * Body, everything behind the eyes. [ears]: Mira's ears pricked (0 → 1); [whole]: the bust is
-     * seen whole, off the ground; [hatLift]: Juno's hat is off her head, so its shadow fades.
+     * seen whole, off the ground; [hatLift]: Juno's hat is off her head, so its shadow fades;
+     * [hatTilt]: her hat sits askew (degrees), and its shadow with it.
      */
-    fun DrawScope.drawBust(id: StudentId, color: Color, colors: ChalkroomColors, outline: Stroke, ears: Float = 0f, whole: Boolean = false, hatLift: Float = 0f) {
+    fun DrawScope.drawBust(id: StudentId, color: Color, colors: ChalkroomColors, outline: Stroke, ears: Float = 0f, whole: Boolean = false, hatLift: Float = 0f, hatTilt: Float = 0f) {
         val w = size.width
         fun fillAndLine(path: Path, fill: Color) {
             drawPath(path, fill)
@@ -141,7 +145,10 @@ object StudentShapes {
                 // The brim's shadow across the top of the face.
                 val shade = (1f - hatLift / 0.08f).coerceIn(0f, 1f)
                 if (shade > 0f) clipPath(face) {
-                    withTransform({ rotate(JUNO_BRIM_TILT, JUNO_BRIM * w) }) {
+                    withTransform({
+                        translate(left = hatTilt * HAT_SHIFT * w)
+                        rotate(JUNO_BRIM_TILT + hatTilt, JUNO_BRIM * w)
+                    }) {
                         drawOval(colors.junoShadow.copy(alpha = colors.junoShadow.alpha * shade), topLeft = Offset((JUNO_BRIM.x - 0.12f) * w, (JUNO_BRIM.y - 0.02f) * w), size = Size(0.60f * w, 0.135f * w))
                     }
                 }
@@ -152,14 +159,17 @@ object StudentShapes {
         }
     }
 
-    /** Anything in front of the eyes: Juno's hat, so eyes glancing up slip under the brim. [hatLift] raises it off her head (figure widths). */
-    fun DrawScope.drawFront(id: StudentId, color: Color, colors: ChalkroomColors, outline: Stroke, hatLift: Float = 0f) {
+    /**
+     * Anything in front of the eyes: Juno's hat, so eyes glancing up slip under the brim. [hatLift]
+     * raises it off her head (figure widths); [hatTilt] turns it askew (degrees) and slides it that way.
+     */
+    fun DrawScope.drawFront(id: StudentId, color: Color, colors: ChalkroomColors, outline: Stroke, hatLift: Float = 0f, hatTilt: Float = 0f) {
         if (id != StudentId.JUNO) return
         val w = size.width
         val b = JUNO_BRIM * w
         withTransform({
-            translate(top = -hatLift * w)
-            rotate(JUNO_BRIM_TILT + 25f * hatLift, b)
+            translate(left = hatTilt * HAT_SHIFT * w, top = -hatLift * w)
+            rotate(JUNO_BRIM_TILT + hatTilt + 25f * hatLift, b)
         }) {
             val knob = Offset(b.x, b.y - 0.27f * w)
             drawCircle(color, 0.06f * w, knob)

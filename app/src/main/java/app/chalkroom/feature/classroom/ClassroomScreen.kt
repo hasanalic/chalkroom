@@ -109,6 +109,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.rotate
+import app.chalkroom.ui.theme.ChalkroomColors
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -131,14 +134,31 @@ fun ClassroomScreen(
     ClassroomContent(state, viewModel::onEvent, flicks)
 }
 
-/** Where each seat sits: x and width as shares of the screen width, bottom as a share of its height. */
-private data class SeatPlace(val x: Float, val width: Float, val bottom: Float)
+/**
+ * Where each seat sits: x and width as shares of the screen width, bottom as a share of its height.
+ * [rise], [scale] and [overDesk] stage the student at it (see StudentAtDesk).
+ */
+private data class SeatPlace(
+    val x: Float,
+    val width: Float,
+    val bottom: Float,
+    val rise: Float = 0f,
+    val scale: Float = 1f,
+    val overDesk: Boolean = false,
+) {
+    /** Seat height / seat width. */
+    val aspect: Float get() = SEAT_ASPECT + rise
+}
 
 private val places = mapOf(
-    StudentId.MIRA to SeatPlace(0.05f, 0.40f, 0.635f), // back row, left
-    StudentId.JUNO to SeatPlace(0.55f, 0.40f, 0.635f), // back row, right
-    StudentId.PIP to SeatPlace(0.265f, 0.47f, 0.84f), // front
+    StudentId.MIRA to SeatPlace(0.05f, 0.40f, 0.62f, rise = 0.07f), // back row, left, up higher
+    StudentId.JUNO to SeatPlace(0.55f, 0.40f, 0.62f), // back row, right
+    StudentId.PIP to SeatPlace(0.27f, 0.46f, 0.845f, scale = 1.12f, overDesk = true), // front, big, over his desk
 )
+
+/** Resting poses, which every other move starts from and returns to. */
+private const val MIRA_REST_TILT = 8f
+private const val JUNO_HAT_TILT = -7f
 
 /** Seat height / seat width (figure + desk, see StudentAtDesk). */
 private const val SEAT_ASPECT = 1.34f
@@ -195,6 +215,8 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
     val buttonIn = remember { Animatable(if (darkAtOpen) 0f else 1f) }
     var settled by remember { mutableStateOf(!darkAtOpen) }
     var glancing by remember { mutableStateOf(false) }
+    // Each bump is Pip's wave at you: when the room first appears (walking in, or the lights coming on).
+    var pipWaves by remember { mutableIntStateOf(0) }
     // When Pip may next throw paper at the bin (elapsed realtime): a few seconds after the entering
     // look, the board read or a wake-up. Dropped if it's too soon after the last throw.
     var throwAt by remember { mutableStateOf<Long?>(null) }
@@ -230,6 +252,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
         buttonIn.animateTo(1f, settle())
         delay(1_000)
         settled = true
+        pipWaves++
         throwAt = SystemClock.elapsedRealtime() + THROW_AFTER_MS
     }
     LaunchedEffect(flicks) {
@@ -286,9 +309,10 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
             delay(if (stagger) 900 else 250)
             noticeOrder.forEach {
                 noticeTicks = noticeTicks + (it to noticeTicks.getValue(it) + 1)
+                if (it == StudentId.PIP) pipWaves++
                 delay(NOTICE_GAP_MS)
             }
-            delay(1_300)
+            delay(WAVE_SWAY_MS + 400L)
         } finally {
             life.quiet = false
         }
@@ -512,6 +536,8 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
             val enter = desksIn.getValue(id).value
             Seat(
                 seat = seat.copy(motes = if (motesShown && id in awake) seat.motes else emptyList()),
+                place = place,
+                waveTick = if (id == StudentId.PIP) pipWaves else 0,
                 life = life.forStudent(id),
                 asleep = id !in awake || id in dozing,
                 startle = settled,
@@ -529,7 +555,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
                     onEvent(UiEvent.StudentTapped(id))
                 },
                 modifier = Modifier
-                    .offset(x = w * place.x, y = h * place.bottom - seatW * SEAT_ASPECT)
+                    .offset(x = w * place.x, y = h * place.bottom - seatW * place.aspect)
                     .width(seatW)
                     .graphicsLayer {
                         alpha = enter
@@ -717,8 +743,14 @@ private const val CALL_MS = 1_400L
 private fun faceRect(id: StudentId, w: Float, h: Float): Rect {
     val place = places.getValue(id)
     val seatW = w * place.width
-    val seatTop = h * place.bottom - seatW * SEAT_ASPECT
-    return Rect(w * place.x + seatW * 0.15f, seatTop + seatW * 0.27f, w * place.x + seatW * 0.85f, seatTop + seatW * 0.86f)
+    val seatTop = h * place.bottom - seatW * place.aspect
+    if (!place.overDesk) return Rect(w * place.x + seatW * 0.15f, seatTop + seatW * 0.27f, w * place.x + seatW * 0.85f, seatTop + seatW * 0.86f)
+    // Over the desk (see StudentAtDesk): the figure's base rests on the desk top.
+    val figW = seatW * 0.8f * place.scale
+    val deskTop = seatTop + seatW * (SEAT_ASPECT - 0.5f)
+    val figTop = deskTop + seatW * 0.5f * 0.2f - figW * 1.3f
+    val left = w * place.x + (seatW - figW) / 2f
+    return Rect(left + figW * 0.08f, figTop + figW * 0.42f, left + figW * 0.92f, figTop + figW * 1.2f)
 }
 
 /**
@@ -879,7 +911,7 @@ private fun LightSwitch(on: State<Float>, dark: State<Float>, glowing: Boolean, 
 /**
  * The board on the wall. A tap puffs a little chalk dust where the finger lands; when a lesson is
  * paused the board also gives a little and opens it. Otherwise it keeps what the last finished
- * lesson taught.
+ * lesson taught, and with neither it says "Class is in!". Its corners always carry a few faint doodles.
  */
 @Composable
 private fun Board(board: ClassroomContract.Board?, learned: ClassroomContract.Learned?, reduced: Boolean, onTap: () -> Unit, modifier: Modifier = Modifier) {
@@ -939,7 +971,11 @@ private fun Board(board: ClassroomContract.Board?, learned: ClassroomContract.Le
             drawRect(colors.lavender2, Offset(eraserTl.x, eraserTl.y + 6f * dp), Size(34f * dp, 4f * dp))
             drawRoundRect(colors.ink, eraserTl, Size(34f * dp, 10f * dp), CornerRadius(2f * dp), style = Stroke(1.2f * dp))
         }
-        if (board != null) {
+        // The slate's corners: faint stars, scribbles and unfinished sums, under everything else.
+        BoardDoodles(Modifier.matchParentSize().padding(start = 10.dp, top = 10.dp, end = 10.dp, bottom = trayH + 6.dp), leftBusy = board == null && learned != null)
+        if (board == null && learned == null) {
+            ChalkHeadline("Class is in!", Modifier.matchParentSize().padding(start = 10.dp, top = 10.dp, end = 10.dp, bottom = trayH + 6.dp))
+        } else if (board != null) {
             val color = StudentCatalog[board.studentId].color
             Column(
                 Modifier
@@ -1006,13 +1042,21 @@ private fun Board(board: ClassroomContract.Board?, learned: ClassroomContract.Le
 /** Where the eyes go when the switch flickers: up and to the left, towards it. */
 private val towardSwitch = Offset(-0.05f, -0.04f)
 
+/**
+ * One student at their desk, in their resting pose (Mira's head tilted at you, Juno's hat askew and
+ * her eyes on the board with a pencil ready, Pip big and over his desk). Each bump of [waveTick],
+ * and his PIP_WAVE idle move, is Pip's wave: no arms, so his whole body sways side to side with a
+ * hop and a friendly look at you. Not with animations removed.
+ */
 @Composable
 private fun Seat(
     seat: ClassroomContract.Seat,
+    place: SeatPlace,
     life: RoomLife?,
     doodleStrokes: Int,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
+    waveTick: Int = 0,
     asleep: Boolean = false,
     glanceAtSwitch: Boolean = false,
     noticeTick: Int = 0,
@@ -1025,27 +1069,73 @@ private fun Seat(
     extraHops: Int = 0,
 ) {
     val kind = life?.kind
+    val id = seat.studentId
+    val colors = Chalkroom.colors
+    val reduced = Chalkroom.reducedMotion
+    val sway = remember { Animatable(0f) }
+    var waveHops by remember { mutableIntStateOf(0) }
+    var waveLooks by remember { mutableIntStateOf(0) }
+    var waving by remember { mutableStateOf(false) }
+    suspend fun wave() {
+        if (reduced || id != StudentId.PIP) return
+        try {
+            waving = true
+            waveLooks++
+            waveHops++
+            coroutineScope {
+                launch {
+                    delay(WAVE_SWAY_MS / 2L)
+                    waveHops++
+                }
+                sway.animateTo(
+                    0f,
+                    keyframes {
+                        durationMillis = WAVE_SWAY_MS
+                        0f at 0 using EaseOutCubic
+                        -9f at 130 using EaseInOutSine
+                        8f at 330 using EaseInOutSine
+                        -6f at 510 using EaseInOutSine
+                        4f at 680 using EaseInOutSine
+                        -1.5f at 840 using EaseInOutSine
+                    },
+                )
+            }
+            delay(300)
+        } finally {
+            sway.snapTo(0f)
+            waving = false
+        }
+    }
+    LaunchedEffect(waveTick) { if (waveTick > 0) wave() }
+    LaunchedEffect(kind) { if (kind == LifeKind.PIP_WAVE) wave() }
     val propMotion by animateFloatAsState(
         if (kind == LifeKind.MIRA_DOODLE || kind == LifeKind.PIP_FIDGET || kind == LifeKind.JUNO_PLANT) 1f else 0f,
         tween(if (kind == null) 500 else 900, easing = EaseInOutSine),
         label = "prop",
     )
     StudentAtDesk(
-        studentId = seat.studentId,
+        studentId = id,
         expression = Expression.IDLE,
         motes = seat.motes,
         notebookOpen = seat.paused,
-        lookAt = if (glanceAtSwitch) towardSwitch else readAt ?: kind?.lookAt,
-        hopTick = (if (kind == LifeKind.PIP_BOUNCE) life?.tick ?: 0 else 0) + extraHops,
+        lookAt = if (glanceAtSwitch) towardSwitch else readAt ?: kind?.lookAt ?: restGaze[id],
+        hopTick = (if (kind == LifeKind.PIP_BOUNCE) life?.tick ?: 0 else 0) + extraHops + waveHops,
         propMotion = propMotion,
         doodleStrokes = doodleStrokes,
         asleep = asleep,
-        noticeTick = noticeTick,
+        noticeTick = noticeTick + waveLooks,
         callTick = callTick,
         startle = startle,
         headX = headX,
         slowNodTick = slowNodTick,
-        proud = proud,
+        proud = proud || waving,
+        rise = place.rise,
+        figureScale = place.scale,
+        overDesk = place.overDesk,
+        sway = sway.value,
+        restTilt = if (id == StudentId.MIRA) MIRA_REST_TILT else 0f,
+        hatTilt = if (id == StudentId.JUNO) JUNO_HAT_TILT else 0f,
+        figureProp = if (id == StudentId.JUNO) ({ drawPencil(size.width, colors) }) else null,
         modifier = modifier.clickable(
             interactionSource = remember { MutableInteractionSource() },
             indication = null,
@@ -1055,11 +1145,55 @@ private fun Seat(
     )
 }
 
+private const val WAVE_SWAY_MS = 1_000
+
+/** Resting gazes: Juno's eyes are on the board, ready to copy. The others look at you. */
+private val restGaze = mapOf(StudentId.JUNO to Offset(-0.03f, -0.04f))
+
+/**
+ * Juno's small pencil, held up at her right side ready to copy, its lower end behind the desk: gold
+ * body, a lavender cap, a cream wooden tip with an ink point. In figure coordinates ([w] wide).
+ */
+private fun DrawScope.drawPencil(w: Float, colors: ChalkroomColors) {
+    val c = Offset(0.82f * w, 0.97f * w)
+    val len = 0.36f * w
+    val bw = 0.06f * w
+    val ink = Stroke(0.016f * w, join = StrokeJoin.Round)
+    rotate(-28f, c) {
+        val top = c.y - len / 2
+        val body = Rect(c.x - bw / 2, top + 0.07f * w, c.x + bw / 2, c.y + len / 2)
+        val tip = Path().apply {
+            moveTo(body.left, body.top)
+            lineTo(c.x, top)
+            lineTo(body.right, body.top)
+            close()
+        }
+        drawPath(tip, colors.wood)
+        drawPath(tip, colors.ink, style = ink)
+        drawPath(
+            Path().apply {
+                moveTo(c.x - bw * 0.22f, top + 0.07f * w * 0.32f)
+                lineTo(c.x, top)
+                lineTo(c.x + bw * 0.22f, top + 0.07f * w * 0.32f)
+                close()
+            },
+            colors.ink,
+        )
+        drawRect(colors.gold, body.topLeft, body.size)
+        drawLine(colors.goldLedge, Offset(c.x, body.top + 0.01f * w), Offset(c.x, body.bottom), 0.012f * w)
+        val cap = Rect(body.left, body.bottom - 0.05f * w, body.right, body.bottom)
+        drawRect(colors.lavender2, cap.topLeft, cap.size)
+        drawRect(colors.ink, body.topLeft, body.size, style = ink)
+        drawLine(colors.ink, Offset(cap.left, cap.top), Offset(cap.right, cap.top), 0.012f * w)
+    }
+}
+
 /** One small thing one student does; looks are listed twice so faces change more often than bodies. */
 private enum class LifeKind(val student: StudentId, val lookAt: Offset?) {
     MIRA_LOOK_UP(StudentId.MIRA, Offset(0.01f, -0.055f)),
     MIRA_DOODLE(StudentId.MIRA, Offset(-0.045f, 0.045f)),
     PIP_BOUNCE(StudentId.PIP, null),
+    PIP_WAVE(StudentId.PIP, null),
     PIP_FIDGET(StudentId.PIP, Offset(-0.04f, 0.045f)),
     JUNO_GAZE_UP(StudentId.JUNO, Offset(0.02f, -0.05f)),
     JUNO_PLANT(StudentId.JUNO, Offset(-0.05f, 0.035f)),
@@ -1067,7 +1201,7 @@ private enum class LifeKind(val student: StudentId, val lookAt: Offset?) {
 
 private val lifeBag = listOf(
     LifeKind.MIRA_LOOK_UP, LifeKind.MIRA_LOOK_UP, LifeKind.MIRA_DOODLE,
-    LifeKind.PIP_BOUNCE, LifeKind.PIP_FIDGET, LifeKind.PIP_FIDGET,
+    LifeKind.PIP_BOUNCE, LifeKind.PIP_FIDGET, LifeKind.PIP_FIDGET, LifeKind.PIP_WAVE,
     LifeKind.JUNO_GAZE_UP, LifeKind.JUNO_GAZE_UP, LifeKind.JUNO_PLANT,
 )
 

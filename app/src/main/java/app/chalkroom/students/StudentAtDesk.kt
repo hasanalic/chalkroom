@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -49,6 +51,13 @@ private fun StudentId.deskTilt(): Float = when (this) {
  * left third. An open notebook in the middle marks a paused lesson. [propMotion] 0 → 1 → 0 plays a
  * small prop action (Mira's doodle grows, Pip fidgets with the notebook, Juno's plant sways);
  * [doodleStrokes] is how much Mira has added to her doodle.
+ *
+ * Staging, all off by default: [rise] (seat widths, up to about 0.07) lowers the desk under the
+ * student, so they rise higher behind it;
+ * [figureScale] makes them bigger than their desk; [overDesk] seats them over the desk's back edge
+ * instead of behind it (drawn whole, the props still on top); [sway] (degrees) rocks the whole
+ * figure from its base; [figureProp] is something the screen draws over the figure, in its
+ * coordinates, that moves with it. [restTilt] and [hatTilt] go to [StudentFigure].
  */
 @Composable
 fun StudentAtDesk(
@@ -71,32 +80,58 @@ fun StudentAtDesk(
     headX: Float? = null,
     slowNodTick: Int = 0,
     proud: Boolean = false,
+    rise: Float = 0f,
+    figureScale: Float = 1f,
+    overDesk: Boolean = false,
+    sway: Float = 0f,
+    restTilt: Float = 0f,
+    hatTilt: Float = 0f,
+    figureProp: (DrawScope.() -> Unit)? = null,
 ) {
     val profile = StudentCatalog[studentId]
     BoxWithConstraints(modifier) {
         val width: Dp = maxWidth
         val figureHeight = width * FIGURE_SHARE * FIGURE_ASPECT
-        val deskTop = figureHeight - width * SINK
+        val deskTop = figureHeight - width * SINK + width * rise
         val deskHeight = width * DESK_ASPECT
-        Box(Modifier.fillMaxWidth().height(deskTop + deskHeight)) {
-            Chair(Modifier.fillMaxWidth().height(deskTop + width * 0.1f), figureHeight)
-            StudentFigure(
-                studentId = studentId,
-                expression = expression,
-                motes = motes,
-                look = look,
-                lookAt = lookAt,
-                hopTick = hopTick,
-                nodTick = nodTick,
-                asleep = asleep,
-                noticeTick = noticeTick,
-                callTick = callTick,
-                startle = startle,
-                headX = headX,
-                slowNodTick = slowNodTick,
-                proud = proud,
-                modifier = Modifier.fillMaxWidth(FIGURE_SHARE).align(Alignment.TopCenter),
-            )
+        val figureW = width * FIGURE_SHARE * figureScale
+        // Over the desk, the figure's rounded base rests on the desk top, a little in from its back edge.
+        val figureY = if (overDesk) deskTop + deskHeight * OVER_DESK_REST - figureW * (FIGURE_ASPECT + WHOLE_BASE) else figureHeight - figureW * FIGURE_ASPECT
+        val figure = @Composable {
+            Box(
+                Modifier
+                    .offset(y = figureY)
+                    .width(figureW)
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer {
+                        transformOrigin = TransformOrigin(0.5f, 1f)
+                        rotationZ = sway
+                    },
+            ) {
+                StudentFigure(
+                    studentId = studentId,
+                    expression = expression,
+                    motes = motes,
+                    look = look,
+                    lookAt = lookAt,
+                    hopTick = hopTick,
+                    nodTick = nodTick,
+                    asleep = asleep,
+                    noticeTick = noticeTick,
+                    callTick = callTick,
+                    startle = startle,
+                    headX = headX,
+                    slowNodTick = slowNodTick,
+                    proud = proud,
+                    lift = if (overDesk) 0f else null,
+                    restTilt = restTilt,
+                    hatTilt = hatTilt,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (figureProp != null) Canvas(Modifier.matchParentSize()) { figureProp() }
+            }
+        }
+        val desk = @Composable { layer: DeskLayer ->
             Box(
                 Modifier
                     .offset(y = deskTop)
@@ -104,8 +139,8 @@ fun StudentAtDesk(
                     .height(deskHeight)
                     .graphicsLayer { rotationZ = studentId.deskTilt() },
             ) {
-                Desk(studentId, notebookOpen, propMotion, doodleStrokes, Modifier.fillMaxWidth().height(deskHeight))
-                if (showName) {
+                Desk(studentId, notebookOpen, propMotion, doodleStrokes, Modifier.fillMaxWidth().height(deskHeight), layer)
+                if (showName && layer != DeskLayer.PROPS) {
                     Text(
                         profile.name,
                         style = Chalkroom.type.small.copy(color = Chalkroom.colors.ink, fontWeight = Chalkroom.type.label.fontWeight, fontSize = 12.sp, lineHeight = 14.sp),
@@ -119,6 +154,38 @@ fun StudentAtDesk(
                 }
             }
         }
+        Box(Modifier.fillMaxWidth().height(deskTop + deskHeight)) {
+            Chair(Modifier.fillMaxWidth().height(deskTop + width * 0.1f), figureHeight)
+            if (overDesk) {
+                desk(DeskLayer.WOOD)
+                DeskShadow(Modifier.offset(y = deskTop).fillMaxWidth().height(deskHeight).graphicsLayer { rotationZ = studentId.deskTilt() }, figureScale)
+                figure()
+                desk(DeskLayer.PROPS)
+            } else {
+                figure()
+                desk(DeskLayer.ALL)
+            }
+        }
+    }
+}
+
+/** What part of the desk to draw: all of it, or the wood and the props separately (a student over the desk sits between them). */
+enum class DeskLayer { ALL, WOOD, PROPS }
+
+/** Where an over-desk student's base rests, as a share of the desk height (the top runs 0.03 → 0.30). */
+private const val OVER_DESK_REST = 0.2f
+
+/** How far a whole bust's rounded base reaches below its canvas (figure widths). */
+private const val WHOLE_BASE = 0.1f
+
+/** A soft flat shadow on the desk top where an over-desk student rests. */
+@Composable
+private fun DeskShadow(modifier: Modifier, figureScale: Float) {
+    val colors = Chalkroom.colors
+    Canvas(modifier) {
+        val w = size.width
+        val fw = FIGURE_SHARE * figureScale * w
+        drawOval(colors.ink.copy(alpha = 0.14f), Offset(w / 2 - fw * 0.36f, size.height * (OVER_DESK_REST - 0.07f)), Size(fw * 0.66f, size.height * 0.12f))
     }
 }
 
@@ -139,7 +206,7 @@ private fun Chair(modifier: Modifier, figureHeight: Dp) {
 }
 
 @Composable
-fun Desk(studentId: StudentId, notebookOpen: Boolean, propMotion: Float, doodleStrokes: Int, modifier: Modifier = Modifier) {
+fun Desk(studentId: StudentId, notebookOpen: Boolean, propMotion: Float, doodleStrokes: Int, modifier: Modifier = Modifier, layer: DeskLayer = DeskLayer.ALL) {
     val colors = Chalkroom.colors
     val profile = StudentCatalog[studentId]
     Canvas(modifier) {
@@ -152,6 +219,7 @@ fun Desk(studentId: StudentId, notebookOpen: Boolean, propMotion: Float, doodleS
         val panelBottom = 0.84f * h
         val legBottom = 0.96f * h
 
+        if (layer != DeskLayer.PROPS) {
         // Flat shadow, legs, front panel, front lip, then the top seen slightly from above.
         drawOval(colors.ink.copy(alpha = 0.12f), Offset(0.02f * w, legBottom - 0.06f * h), Size(0.96f * w, 0.12f * h))
         listOf(0.09f, 0.87f).forEach { x ->
@@ -188,6 +256,8 @@ fun Desk(studentId: StudentId, notebookOpen: Boolean, propMotion: Float, doodleS
             },
             grain, style = Stroke(0.01f * w, cap = StrokeCap.Round),
         )
+        }
+        if (layer == DeskLayer.WOOD) return@Canvas
 
         // The personal prop on the left third; the open notebook (paused lesson) in the middle.
         when (studentId) {
