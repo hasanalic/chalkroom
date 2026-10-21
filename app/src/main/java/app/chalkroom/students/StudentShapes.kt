@@ -58,30 +58,33 @@ object StudentShapes {
         )
     }
 
-    /** Mira: a cat-eared blob, the right ear taller. */
-    private fun mira(w: Float) = Path().apply {
+    /** Mira: a cat-eared blob, the right ear taller. [ears] 0 → 1 pricks both ear tips up and out. */
+    private fun mira(w: Float, ears: Float = 0f) = Path().apply {
         fun c(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float) = cubicTo(x1 * w, y1 * w, x2 * w, y2 * w, x3 * w, y3 * w)
+        // How far each ear point moves when pricked: tips the most, the bases not at all.
+        val up = 0.06f * ears
+        val out = 0.025f * ears
         moveTo(0.15f * w, (BOTTOM + 0.12f) * w)
         c(0.10f, 1.16f, 0.10f, 0.94f, 0.16f, 0.80f)
-        c(0.20f, 0.69f, 0.25f, 0.58f, 0.29f, 0.52f)
-        c(0.31f, 0.485f, 0.34f, 0.48f, 0.355f, 0.51f)
-        c(0.37f, 0.545f, 0.38f, 0.578f, 0.41f, 0.576f)
+        c(0.20f, 0.69f, 0.25f - 0.3f * out, 0.58f - 0.3f * up, 0.29f - 0.6f * out, 0.52f - 0.6f * up)
+        c(0.31f - out, 0.485f - up, 0.34f - out, 0.48f - up, 0.355f - 0.8f * out, 0.51f - 0.8f * up)
+        c(0.37f - 0.4f * out, 0.545f - 0.4f * up, 0.38f, 0.578f, 0.41f, 0.576f)
         c(0.47f, 0.566f, 0.56f, 0.548f, 0.59f, 0.52f)
-        c(0.62f, 0.48f, 0.645f, 0.425f, 0.67f, 0.41f)
-        c(0.69f, 0.395f, 0.715f, 0.40f, 0.735f, 0.43f)
+        c(0.62f, 0.48f, 0.645f + 0.5f * out, 0.425f - 0.5f * up, 0.67f + 0.9f * out, 0.41f - 0.9f * up)
+        c(0.69f + out, 0.395f - up, 0.715f + out, 0.40f - up, 0.735f + 0.7f * out, 0.43f - 0.7f * up)
         c(0.82f, 0.55f, 0.92f, 0.80f, 0.91f, 0.98f)
         c(0.905f, 1.10f, 0.88f, 1.22f, 0.84f, BOTTOM + 0.12f)
         close()
     }
 
-    /** Pip: a lightning bolt, tip up and to the right, one point left and one right. */
-    private fun pip(w: Float) = roundedPolygon(
+    /** Pip: a lightning bolt, tip up and to the right, one point left and one right. [whole] rounds the bottom corners (seen in the air). */
+    private fun pip(w: Float, whole: Boolean = false) = roundedPolygon(
         w,
         Corner(0.76f, 0.34f, 0.07f), // top tip
         Corner(0.70f, 0.74f, 0.025f), // notch
         Corner(0.97f, 0.64f, 0.06f), // right point
-        Corner(0.74f, BOTTOM + 0.1f, 0f),
-        Corner(0.10f, BOTTOM + 0.1f, 0f),
+        Corner(0.74f, BOTTOM + 0.1f, if (whole) 0.06f else 0f),
+        Corner(0.10f, BOTTOM + 0.1f, if (whole) 0.06f else 0f),
         Corner(0.30f, 0.91f, 0.025f), // inner corner
         Corner(0.05f, 0.90f, 0.06f), // left point
     )
@@ -118,24 +121,28 @@ object StudentShapes {
     private val JUNO_BRIM = Offset(0.49f, 0.715f)
     private const val JUNO_BRIM_TILT = -15f
 
-    /** Body, everything behind the eyes. */
-    fun DrawScope.drawBust(id: StudentId, color: Color, colors: ChalkroomColors, outline: Stroke) {
+    /**
+     * Body, everything behind the eyes. [ears]: Mira's ears pricked (0 → 1); [whole]: the bust is
+     * seen whole, off the ground; [hatLift]: Juno's hat is off her head, so its shadow fades.
+     */
+    fun DrawScope.drawBust(id: StudentId, color: Color, colors: ChalkroomColors, outline: Stroke, ears: Float = 0f, whole: Boolean = false, hatLift: Float = 0f) {
         val w = size.width
         fun fillAndLine(path: Path, fill: Color) {
             drawPath(path, fill)
             drawPath(path, colors.ink, style = outline)
         }
         when (id) {
-            StudentId.MIRA -> fillAndLine(mira(w), color)
-            StudentId.PIP -> fillAndLine(pip(w), color)
+            StudentId.MIRA -> fillAndLine(mira(w, ears), color)
+            StudentId.PIP -> fillAndLine(pip(w, whole), color)
             StudentId.JUNO -> {
                 fillAndLine(junoCoat(w), color)
                 val face = junoFace(w)
                 drawPath(face, colors.junoFace)
                 // The brim's shadow across the top of the face.
-                clipPath(face) {
+                val shade = (1f - hatLift / 0.08f).coerceIn(0f, 1f)
+                if (shade > 0f) clipPath(face) {
                     withTransform({ rotate(JUNO_BRIM_TILT, JUNO_BRIM * w) }) {
-                        drawOval(colors.junoShadow, topLeft = Offset((JUNO_BRIM.x - 0.12f) * w, (JUNO_BRIM.y - 0.02f) * w), size = Size(0.60f * w, 0.135f * w))
+                        drawOval(colors.junoShadow.copy(alpha = colors.junoShadow.alpha * shade), topLeft = Offset((JUNO_BRIM.x - 0.12f) * w, (JUNO_BRIM.y - 0.02f) * w), size = Size(0.60f * w, 0.135f * w))
                     }
                 }
                 drawPath(face, colors.ink, style = outline)
@@ -145,12 +152,15 @@ object StudentShapes {
         }
     }
 
-    /** Anything in front of the eyes: Juno's hat, so eyes glancing up slip under the brim. */
-    fun DrawScope.drawFront(id: StudentId, color: Color, colors: ChalkroomColors, outline: Stroke) {
+    /** Anything in front of the eyes: Juno's hat, so eyes glancing up slip under the brim. [hatLift] raises it off her head (figure widths). */
+    fun DrawScope.drawFront(id: StudentId, color: Color, colors: ChalkroomColors, outline: Stroke, hatLift: Float = 0f) {
         if (id != StudentId.JUNO) return
         val w = size.width
         val b = JUNO_BRIM * w
-        withTransform({ rotate(JUNO_BRIM_TILT, b) }) {
+        withTransform({
+            translate(top = -hatLift * w)
+            rotate(JUNO_BRIM_TILT + 25f * hatLift, b)
+        }) {
             val knob = Offset(b.x, b.y - 0.27f * w)
             drawCircle(color, 0.06f * w, knob)
             drawCircle(colors.ink, 0.06f * w, knob, style = outline)

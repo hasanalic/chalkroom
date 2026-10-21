@@ -23,14 +23,17 @@ import kotlinx.coroutines.launch
 class ChooseStudentViewModel(private val repository: LessonRepository) : ViewModel() {
 
     private val confirm = MutableStateFlow<Confirm?>(null)
+    private val selection = MutableStateFlow<Pair<StudentId?, Int>>(null to 0)
 
-    val state: StateFlow<UiState> = combine(repository.state, confirm) { s, c ->
+    val state: StateFlow<UiState> = combine(repository.state, confirm, selection) { s, c, (selected, tick) ->
         UiState(
             StudentId.entries.map { id ->
                 val lesson = s.lessons[id]?.takeIf { it.paused }
                 Choice(id, paused = lesson != null, motes = lesson?.queue?.map { Mote(it.id) }.orEmpty())
             },
             c,
+            selected,
+            tick,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, UiState())
 
@@ -39,12 +42,13 @@ class ChooseStudentViewModel(private val repository: LessonRepository) : ViewMod
 
     fun onEvent(event: UiEvent) {
         when (event) {
-            is UiEvent.Picked -> {
-                val paused = repository.lesson(event.studentId)?.takeIf { it.paused }
+            is UiEvent.Selected -> selection.value = event.studentId to selection.value.second + 1
+            UiEvent.Continue -> selection.value.first?.let { id ->
+                val paused = repository.lesson(id)?.takeIf { it.paused }
                 if (paused != null) {
-                    confirm.value = Confirm(event.studentId, paused.topicTitle, paused.queue.size)
+                    confirm.value = Confirm(id, paused.topicTitle, paused.queue.size)
                 } else {
-                    send(UiEffect.Read(event.studentId))
+                    send(UiEffect.Read(id))
                 }
             }
             UiEvent.ContinuePaused -> confirm.value?.let {
