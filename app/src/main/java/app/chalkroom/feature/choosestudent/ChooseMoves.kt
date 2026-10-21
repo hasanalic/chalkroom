@@ -50,6 +50,8 @@ internal class Pose {
     /** Turning round in place, degrees about the vertical axis. */
     val spin = Animatable(0f)
     val ears = Animatable(0f)
+    /** Mira growing past her card while she celebrates, around her bottom (1 = her normal size). */
+    val grow = Animatable(1f)
     val hat = Animatable(0f)
     var lookAt by mutableStateOf<Offset?>(null)
     var headX by mutableStateOf<Float?>(null)
@@ -71,7 +73,7 @@ internal class Pose {
         lookAt = null
         headX = null
         expression = Expression.IDLE
-        val rest = listOf(lift to 0f, scaleX to 1f, scaleY to 1f, lean to 0f, ears to 0f, hat to 0f, fleckAlpha to 0f, page to 0f)
+        val rest = listOf(lift to 0f, scaleX to 1f, scaleY to 1f, lean to 0f, ears to 0f, grow to 1f, hat to 0f, fleckAlpha to 0f, page to 0f)
         sparkle.snapTo(0f)
         spin.snapTo(0f)
         if (snap) return rest.forEach { (a, v) -> a.snapTo(v) }
@@ -213,11 +215,18 @@ private fun eyesToward(p: Offset): Offset = Offset(
     ((p.y - MIRA_EYES.y) * 0.14f).coerceIn(-0.05f, 0.04f),
 )
 
+/**
+ * How big Mira grows while she celebrates, so her head and ears break out of the top of her card. Any
+ * bigger and, mid-spin, her ears reach the title at 360dp.
+ */
+internal const val MIRA_GROW = 1.22f
+
 private suspend fun Pose.miraCelebrates() {
     expression = Expression.RELAXED
     sparkleAt = Offset(0.53f, 0.62f)
     coroutineScope {
         launch { ears.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 500f)) }
+        launch { grow.animateTo(MIRA_GROW, spring(dampingRatio = 0.75f, stiffness = 400f)) }
         launch {
             delay(120)
             spin.animateTo(360f, tween(700, easing = EaseInOutSine))
@@ -229,7 +238,10 @@ private suspend fun Pose.miraCelebrates() {
     }
     sparkle.snapTo(0f)
     spin.snapTo(0f)
-    delay(700)
+    coroutineScope {
+        launch { grow.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 260f)) }
+        delay(700)
+    }
     expression = Expression.IDLE
     ears.animateTo(0f, tween(450, easing = EaseInOutSine))
 }

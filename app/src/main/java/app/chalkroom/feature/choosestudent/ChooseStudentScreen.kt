@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -193,6 +194,9 @@ private fun StudentId.headTop(): Float = when (this) {
 /** A mote's radius (the last one's, the biggest) plus its ring, figure widths. */
 private const val MOTE_ROOM = 0.09f
 
+/** Where across her canvas Mira grows from when she celebrates (0 left, 1 right): her ears drift right, away from the title. */
+private const val MIRA_GROW_X = 0.4f
+
 /** Pip's tip is where his jump has to clear the box top from. */
 private const val PIP_TIP = 0.33f
 
@@ -302,7 +306,8 @@ private fun StudentBox(
                 }
             }
             .drawWithContent {
-                // Cropped by the card's bottom edge and rounded corners; open above, so a jump or a popping hat can rise out of it.
+                // Cropped by the card's bottom edge and rounded corners; open above, so a jump or a popping hat can
+                // rise out of it, and open to the sides above the corners, so a grown Mira can spill past her edge.
                 val r = 20.dp.toPx()
                 val open = Path().apply {
                     addRoundRect(
@@ -311,6 +316,7 @@ private fun StudentBox(
                             bottomLeftCornerRadius = CornerRadius(r), bottomRightCornerRadius = CornerRadius(r),
                         ),
                     )
+                    addRect(Rect(-size.width, -size.height * 6, size.width * 2, size.height - r))
                 }
                 clipPath(open) { this@drawWithContent.drawContent() }
             }
@@ -620,9 +626,14 @@ private fun StudentSlot(choice: ChooseStudentContract.Choice, pose: Pose) {
                 if (w > 0f) pose.jumpLift = (it.positionInParent().y / w) + PIP_TIP + 0.2f
             },
     ) {
-        // The student, and Juno's book, which moves with her.
+        // The student, and Juno's book, which moves with her. Mira grows around a point a little left of her
+        // middle, so her ears rise past the card's top while staying clear of the title.
         Box(
             Modifier.graphicsLayer {
+                transformOrigin = TransformOrigin(MIRA_GROW_X, 1f)
+                scaleX = pose.grow.value
+                scaleY = pose.grow.value
+            }.graphicsLayer {
                 transformOrigin = TransformOrigin(0.5f, 1f)
                 scaleX = pose.scaleX.value
                 scaleY = pose.scaleY.value
