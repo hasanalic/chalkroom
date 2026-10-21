@@ -2,6 +2,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Voice mode: speech to text only, nothing is recorded or kept. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Without this the speech recognition service is invisible to the app on API 30+. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 
     <application
         android:name=".ChalkroomApp"

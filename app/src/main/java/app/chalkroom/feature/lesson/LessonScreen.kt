@@ -44,6 +44,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -136,6 +140,8 @@ fun LessonScreen(
         }
     }
     LightStatusBarIcons()
+    val speech = rememberSpeechInput(viewModel::onEvent)
+    VoiceInputEffects(state.voice, speech, viewModel::onEvent)
     LessonContent(state, viewModel::onEvent)
 }
 
@@ -172,7 +178,9 @@ fun LessonContent(state: UiState, onEvent: (UiEvent) -> Unit) {
         Column(
             Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)),
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+                // Under voice mode the lesson is hidden from TalkBack.
+                .then(if (state.voice != null) Modifier.clearAndSetSemantics { } else Modifier),
         ) {
             Column(
                 Modifier
@@ -215,6 +223,8 @@ fun LessonContent(state: UiState, onEvent: (UiEvent) -> Unit) {
         }
         // Slate behind the status bar, so the board scrolled up (keyboard open) never runs under its icons.
         Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(colors.board))
+
+        VoiceOverlay(state.voice, profile.color, onEvent)
     }
 
     if (historyOpen && lesson.exchanges.isNotEmpty()) {
@@ -529,6 +539,8 @@ private fun NotePad() {
 private fun ExplainInput(state: UiState, name: String, placeholder: String, locked: Boolean, onEvent: (UiEvent) -> Unit) {
     val colors = Chalkroom.colors
     val shape = RoundedCornerShape(Radii.button)
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focus = LocalFocusManager.current
     Column(
         Modifier
             .fillMaxWidth()
@@ -552,18 +564,30 @@ private fun ExplainInput(state: UiState, name: String, placeholder: String, lock
                     .clip(shape)
                     .background(colors.card)
                     .border(2.dp, if (locked) colors.line else colors.ink, shape)
-                    .padding(horizontal = 16.dp, vertical = 15.dp)
                     .alpha(if (locked) 0.55f else 1f),
             ) {
-                BasicTextField(
-                    value = state.input,
-                    onValueChange = { onEvent(UiEvent.InputChanged(it)) },
+                // The text wraps before the mic, never under it.
+                Box(Modifier.padding(start = 16.dp, end = MIC_END + MIC_TARGET, top = 15.dp, bottom = 15.dp)) {
+                    BasicTextField(
+                        value = state.input,
+                        onValueChange = { onEvent(UiEvent.InputChanged(it)) },
+                        enabled = !locked,
+                        textStyle = Chalkroom.type.body.copy(color = colors.ink),
+                        cursorBrush = SolidColor(colors.ink),
+                        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Your explanation" },
+                    )
+                    if (state.input.isEmpty()) Text(placeholder, style = Chalkroom.type.body.copy(color = colors.muted))
+                }
+                MicButton(
                     enabled = !locked,
-                    textStyle = Chalkroom.type.body.copy(color = colors.ink),
-                    cursorBrush = SolidColor(colors.ink),
-                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Your explanation" },
+                    onClick = {
+                        keyboard?.hide()
+                        focus.clearFocus()
+                        onEvent(UiEvent.OpenVoice)
+                    },
+                    // Centred on the first line: 15dp padding + half the 22sp line height, less half the target.
+                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = MIC_END),
                 )
-                if (state.input.isEmpty()) Text(placeholder, style = Chalkroom.type.body.copy(color = colors.muted))
             }
             PrimaryButton(
                 text = if (state.phase == Phase.FAILED) "Try again" else "Explain",
@@ -573,6 +597,24 @@ private fun ExplainInput(state: UiState, name: String, placeholder: String, lock
         }
     }
 }
+
+/** Opens voice mode. Dimmed with the field and inert while the input is locked. */
+@Composable
+private fun MicButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .size(MIC_TARGET)
+            .clip(CircleShape)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "Speak your explanation" },
+        contentAlignment = Alignment.Center,
+    ) {
+        MicGlyph(Chalkroom.colors.ink, Modifier.size(22.dp))
+    }
+}
+
+private val MIC_TARGET = 48.dp
+private val MIC_END = 4.dp
 
 /** The app's own card, never the student's voice: what's actually true. */
 @Composable

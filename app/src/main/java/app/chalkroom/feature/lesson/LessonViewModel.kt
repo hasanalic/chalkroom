@@ -73,7 +73,31 @@ class LessonViewModel(
                     viewModelScope.launch { clear(sentence = null, reply = null, chalkLine = null) }
                 }
             }
+            UiEvent.OpenVoice ->
+                if (!_state.value.inputLocked && _state.value.voice == null) _state.update { it.copy(voice = VoiceInput()) }
+            is UiEvent.VoicePermission ->
+                if (!event.granted) {
+                    voice { it.copy(phase = VoicePhase.ERROR, error = if (event.blocked) VoiceError.PERMISSION_BLOCKED else VoiceError.PERMISSION_DENIED) }
+                }
+            UiEvent.VoiceListening -> voice { it.copy(phase = VoicePhase.LISTENING, error = null) }
+            UiEvent.VoiceQuiet -> voice { it.copy(phase = VoicePhase.QUIET) }
+            is UiEvent.VoicePartial -> voice { it.copy(partial = event.text) }
+            is UiEvent.VoiceFinal -> voice { it.copy(finalized = mergeSpoken(it.finalized, event.text), partial = "") }
+            is UiEvent.VoiceFailed -> voice { it.copy(phase = VoicePhase.ERROR, error = event.error) }
+            UiEvent.VoiceRetry -> voice { it.copy(phase = VoicePhase.STARTING, error = null) }
+            UiEvent.VoiceDone -> {
+                val voice = _state.value.voice ?: return
+                if (!voice.canFinish) return
+                // Only fills the box: never sends, never touches the round.
+                _state.update { it.copy(input = mergeSpoken(it.input, voice.transcript).take(TurnLimits.MAX_EXPLANATION_CHARS), voice = null) }
+            }
+            UiEvent.VoiceCancel -> _state.update { it.copy(voice = null) }
         }
+    }
+
+    /** Changes voice mode only while it is open, so late recognizer callbacks after closing are dropped. */
+    private fun voice(change: (VoiceInput) -> VoiceInput) {
+        _state.update { s -> s.voice?.let { s.copy(voice = change(it)) } ?: s }
     }
 
     private fun send() {

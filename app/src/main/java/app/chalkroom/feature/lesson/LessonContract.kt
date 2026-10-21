@@ -26,6 +26,8 @@ object LessonContract {
         val writing: Boolean = false,
         /** How many of the lesson's chalk lines are on the board; the newest goes up only after the clearing and pad. */
         val chalkShown: Int = 0,
+        /** Voice mode over the lesson; null when closed. Only another way to write [input]. */
+        val voice: VoiceInput? = null,
     ) {
         val inputLocked: Boolean get() = phase != Phase.IDLE && phase != Phase.FAILED
     }
@@ -36,6 +38,18 @@ object LessonContract {
         data object SeeAnswer : UiEvent
         data object OneLastTry : UiEvent
         data object ContinueAfterAnswer : UiEvent
+
+        // Voice mode. All but OpenVoice are ignored while voice mode is closed (the recognizer can call back late).
+        data object OpenVoice : UiEvent
+        data class VoicePermission(val granted: Boolean, val blocked: Boolean) : UiEvent
+        data object VoiceListening : UiEvent
+        data object VoiceQuiet : UiEvent
+        data class VoicePartial(val text: String) : UiEvent
+        data class VoiceFinal(val text: String) : UiEvent
+        data class VoiceFailed(val error: VoiceError) : UiEvent
+        data object VoiceRetry : UiEvent
+        data object VoiceDone : UiEvent
+        data object VoiceCancel : UiEvent
     }
 
     sealed interface UiEffect {
