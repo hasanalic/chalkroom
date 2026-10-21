@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -56,9 +57,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -139,6 +142,7 @@ fun ChooseStudentContent(state: UiState, onEvent: (UiEvent) -> Unit) {
                 }
                 StudentBox(
                     choice,
+                    below = state.students.getOrNull(i + 1),
                     selected = picked == choice.studentId,
                     cue = cue,
                     onClick = { onEvent(UiEvent.Selected(choice.studentId)) },
@@ -189,6 +193,16 @@ private fun StudentId.headTop(): Float = when (this) {
     StudentId.MIRA -> FLECK_TOP
     StudentId.PIP -> PIP_TIP - MAX_HOP
     StudentId.JUNO -> 0.38f
+}
+
+/**
+ * How far above their card's top each student gets at the peak of a celebration (figure widths): Pip's
+ * jump with his tip past the top, Juno's popping hat. Mira grows on her own side, away from the card above.
+ */
+private fun StudentId.rise(): Float = when (this) {
+    StudentId.MIRA -> 0f
+    StudentId.PIP -> 0.42f
+    StudentId.JUNO -> 0.2f
 }
 
 /** A mote's radius (the last one's, the biggest) plus its ring, figure widths. */
@@ -261,6 +275,7 @@ private val CardShape20 = RoundedCornerShape(20.dp)
 @Composable
 private fun StudentBox(
     choice: ChooseStudentContract.Choice,
+    below: ChooseStudentContract.Choice?,
     selected: Boolean,
     cue: Cue?,
     onClick: () -> Unit,
@@ -281,6 +296,8 @@ private fun StudentBox(
     )
 
     val pose = remember { Pose() }
+    // Where the name and intro sit, top to bottom (card px), so Pip's bolts keep out of them.
+    val textBand = remember { mutableStateOf(0f to 0f) }
     LaunchedEffect(cue, reduced) {
         pose.settle(snap = reduced)
         if (reduced) return@LaunchedEffect
@@ -294,7 +311,7 @@ private fun StudentBox(
 
     Layout(
         content = {
-            CardBackdrop(choice, wash, selected)
+            CardBackdrop(choice, wash, selected, textBand)
             BoxText(choice)
             StudentSlot(choice, pose)
         },
@@ -334,7 +351,14 @@ private fun StudentBox(
         val f = figure.measure(Constraints.fixed(w, h))
         layout(width, height) {
             b.place(0, 0)
-            t.place(spot.textX.toInt(), 16.dp.roundToPx())
+            // The name and intro sit a touch above the middle of their column, so it reads as filled, but
+            // high enough that the student below, jumping out of their card on this side, never reaches them.
+            val clear = below?.takeIf { it.studentId.side() != id.side() }?.let {
+                spot(it, width.toFloat(), height.toFloat()).w * it.studentId.rise() - 16.dp.toPx() + 6.dp.toPx()
+            } ?: 0f
+            val top = minOf((height - t.height) * 0.45f, height - clear - t.height).toInt().coerceAtLeast(12.dp.roundToPx())
+            textBand.value = top.toFloat() to (top + t.height).toFloat()
+            t.place(spot.textX.toInt(), top)
             f.place(spot.x.toInt(), height - h)
         }
     }
@@ -351,7 +375,12 @@ private const val PICKED_WASH = 0.30f
  * with animations removed.
  */
 @Composable
-private fun CardBackdrop(choice: ChooseStudentContract.Choice, wash: State<Float>, selected: Boolean) {
+private fun CardBackdrop(
+    choice: ChooseStudentContract.Choice,
+    wash: State<Float>,
+    selected: Boolean,
+    textBand: State<Pair<Float, Float>>,
+) {
     val colors = Chalkroom.colors
     val id = choice.studentId
     val profile = StudentCatalog[id]
@@ -381,7 +410,7 @@ private fun CardBackdrop(choice: ChooseStudentContract.Choice, wash: State<Float
                 drawRect(profile.color.copy(alpha = wash.value).compositeOver(colors.page))
                 drawPoints(dark, PointMode.Points, colors.ink.copy(alpha = 0.07f), dot, StrokeCap.Round)
                 drawPoints(light, PointMode.Points, colors.card.copy(alpha = 0.5f), dot, StrokeCap.Round)
-                if (l > 0f) drawSurface(id, spot, t, l, profile.shade)
+                if (l > 0f) drawSurface(id, spot, textBand.value, t, l, profile.shade)
                 translate(spot.x, size.height - spot.w * FIGURE_H) {
                     drawMark(id, spot.w, profile.shade, colors, if (l > 0f) t else 0f, l)
                 }
@@ -410,6 +439,7 @@ private const val TAU = (2 * PI).toFloat()
 private fun DrawScope.drawSurface(
     id: StudentId,
     spot: Spot,
+    textBand: Pair<Float, Float>,
     t: Float,
     life: Float,
     shade: Color,
@@ -462,7 +492,8 @@ private fun DrawScope.drawSurface(
                         (0.06f + 0.88f * hash01(i * 7 + k, n)) * w,
                         (0.12f + 0.76f * hash01(i * 13 + k, n + 50)) * h,
                     )
-                    val inText = at.x in (spot.textX - 8.dp.toPx())..(spot.textX + spot.textW + 8.dp.toPx()) && at.y < 76.dp.toPx()
+                    val inText = at.x in (spot.textX - 8.dp.toPx())..(spot.textX + spot.textW + 8.dp.toPx()) &&
+                        at.y in (textBand.first - 8.dp.toPx())..(textBand.second + 8.dp.toPx())
                     if (!inText) break
                 }
                 at += Offset(cos(rad), sin(rad)) * streak
@@ -584,6 +615,8 @@ private fun BoxText(choice: ChooseStudentContract.Choice) {
     val colors = Chalkroom.colors
     val profile = StudentCatalog[choice.studentId]
     val end = choice.studentId.side() < 0
+    // Display-size name and a roomy intro over up to 4 lines; a step smaller on narrow phones (360dp).
+    val narrow = LocalConfiguration.current.screenWidthDp < 400
     Column(horizontalAlignment = if (end) Alignment.End else Alignment.Start) {
         // A small tag above the name, so it never squeezes the name at narrow widths.
         if (choice.paused) {
@@ -596,14 +629,24 @@ private fun BoxText(choice: ChooseStudentContract.Choice) {
                     .padding(horizontal = 8.dp, vertical = 2.dp),
             )
         }
-        Text(profile.name, style = Chalkroom.type.title.copy(fontSize = 20.sp, lineHeight = 25.sp))
+        Text(
+            profile.name,
+            style = Chalkroom.type.display.copy(fontSize = if (narrow) 26.sp else 32.sp, lineHeight = if (narrow) 31.sp else 38.sp),
+            maxLines = 1,
+        )
         Text(
             profile.cardIntro,
-            style = Chalkroom.type.small.copy(fontSize = 12.sp, lineHeight = 16.sp, color = colors.ink2),
+            style = Chalkroom.type.body.copy(
+                fontSize = if (narrow) 17.sp else 20.sp,
+                lineHeight = if (narrow) 22.sp else 28.sp,
+                // Even lines, no lone last word.
+                lineBreak = LineBreak.Heading,
+                color = colors.ink2,
+            ),
             textAlign = if (end) TextAlign.End else TextAlign.Start,
-            maxLines = 2,
+            maxLines = 4,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 2.dp),
+            modifier = Modifier.padding(top = 4.dp),
         )
     }
 }
