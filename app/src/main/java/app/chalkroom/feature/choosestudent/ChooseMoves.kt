@@ -88,8 +88,11 @@ private val MIRA_EYES = Offset(0.535f, 0.86f)
 /** What a box was last told: celebrate (it was picked) or look at whoever was. */
 internal sealed interface Cue {
     data class Celebrate(val tick: Int) : Cue
-    /** [dir] is -1 when the picked student's box is above, +1 below. */
-    data class LookAtPick(val dir: Int, val tick: Int) : Cue
+    /**
+     * [dy] is -1 when the picked student's card is above, +1 below; [dx] is -1 when they stand
+     * further left on their card, +1 further right, 0 on the same side.
+     */
+    data class LookAtPick(val dx: Int, val dy: Int, val tick: Int) : Cue
 }
 
 /** The idle loop, per student. Runs until cancelled; never in sync, each has its own clock. */
@@ -110,11 +113,11 @@ internal suspend fun Pose.celebrate(id: StudentId) = when (id) {
 }
 
 /** The other two turn to look at the picked student for a moment. */
-internal suspend fun Pose.lookAtPick(dir: Int) {
-    // Eyes down (or up) at them, the head bowing toward them (or lifting) a touch.
-    lookAt = Offset(0f, if (dir > 0) 0.075f else -0.06f)
-    headX = 0f
-    scaleY.animateTo(1f - 0.035f * dir, tween(300, easing = Dart))
+internal suspend fun Pose.lookAtPick(dx: Int, dy: Int) {
+    // Eyes down (or up) and across at them, the head bowing toward them (or lifting) and turning a touch.
+    lookAt = Offset(0.05f * dx, if (dy > 0) 0.075f else -0.06f)
+    headX = 0.03f * dx
+    scaleY.animateTo(1f - 0.035f * dy, tween(300, easing = Dart))
     delay(1_300)
     lookAt = null
     headX = null
@@ -123,16 +126,26 @@ internal suspend fun Pose.lookAtPick(dir: Int) {
 
 // ---- Mira: the chalk-dust hunt -----------------------------------------------------------------
 
+/**
+ * The fleck's highest point (figure widths), so the layout keeps it inside the card. It hovers
+ * above Mira's head, a little to one side: her card's text sits beside her, so she hunts upward.
+ */
+internal const val FLECK_TOP = 0.22f
+
 private suspend fun Pose.miraHunt() {
     var side = if (Random.nextBoolean()) 1f else -1f
     while (true) {
-        val base = Offset(0.5f + side * 0.54f, 0.6f)
-        fleck.snapTo(base + Offset(side * 0.12f, -0.08f))
+        // Toward her text side (left) the fleck stays nearer and she leans less.
+        val toText = side < 0
+        val base = Offset(0.5f + side * (if (toText) 0.22f else 0.32f), 0.34f)
+        val leanIn = if (toText) 4f else 6f
+        val lunge = if (toText) 7f else 10f
+        fleck.snapTo(base + Offset(side * 0.06f, -0.03f))
         fleckAlpha.animateTo(1f, tween(500))
         // The fleck drifts in the air, a little nearer each moment; her eyes follow it and she leans in slowly.
         val driftMs = 3_400L + Random.nextLong(0, 900)
         coroutineScope {
-            launch { lean.animateTo(side * 11f, tween(driftMs.toInt(), easing = EaseInOutSine)) }
+            launch { lean.animateTo(side * leanIn, tween(driftMs.toInt(), easing = EaseInOutSine)) }
             launch {
                 delay(driftMs / 4)
                 twitch()
@@ -145,23 +158,24 @@ private suspend fun Pose.miraHunt() {
                 while (t * 1000 < driftMs) {
                     t = (withFrameNanos { it } - start) / 1e9f
                     val p = Offset(
-                        base.x + sin(t * 1.6f) * 0.05f - side * t * 0.045f,
-                        base.y + cos(t * 1.1f) * 0.07f - 0.03f * sin(t * 2.7f),
+                        base.x + sin(t * 1.6f) * 0.04f - side * t * 0.02f,
+                        base.y + cos(t * 1.1f) * 0.06f - 0.02f * sin(t * 2.7f),
                     )
                     fleck.snapTo(p)
                     lookAt = eyesToward(p)
                 }
             }
         }
-        // The lunge: a quick lean all the way in, ears up; the fleck slips away up and out.
+        // The lunge: up and in, ears up; the fleck slips away upward.
         val from = fleck.value
         coroutineScope {
-            launch { lean.animateTo(side * 20f, tween(150, easing = Dart)) }
+            launch { lean.animateTo(side * lunge, tween(150, easing = Dart)) }
+            launch { lift.animateTo(0.035f, tween(150, easing = Dart)) }
             launch { scaleY.animateTo(1.06f, tween(150, easing = Dart)) }
             launch { ears.animateTo(1f, tween(120, easing = Dart)) }
             launch {
                 delay(70)
-                fleck.animateTo(from + Offset(side * 0.55f, -0.45f), tween(420, easing = EaseOutCubic))
+                fleck.animateTo(from + Offset(side * (if (toText) 0.04f else 0.12f), -0.36f), tween(420, easing = EaseOutCubic))
             }
             launch {
                 delay(140)
@@ -169,13 +183,14 @@ private suspend fun Pose.miraHunt() {
             }
             launch {
                 delay(120)
-                lookAt = Offset(side * 0.06f, -0.04f)
+                lookAt = Offset(side * 0.04f, -0.05f)
             }
         }
         delay(250)
         lookAt = null
         coroutineScope {
             launch { lean.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = 260f)) }
+            launch { lift.animateTo(0f, spring(dampingRatio = 0.6f, stiffness = 300f)) }
             launch { scaleY.animateTo(1f, tween(350, easing = EaseInOutSine)) }
             launch { ears.animateTo(0f, tween(500, easing = EaseInOutSine)) }
         }
