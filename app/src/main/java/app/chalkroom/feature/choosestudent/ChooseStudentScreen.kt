@@ -1,21 +1,18 @@
 package app.chalkroom.feature.choosestudent
 
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
@@ -51,8 +49,6 @@ import app.chalkroom.students.Mote
 import app.chalkroom.students.StudentCatalog
 import app.chalkroom.students.StudentFigure
 import app.chalkroom.students.StudentShapes
-import app.chalkroom.ui.components.BUTTON_LEDGE_DP
-import app.chalkroom.ui.components.CardShape
 import app.chalkroom.ui.components.PrimaryButton
 import app.chalkroom.ui.components.QuietButton
 import app.chalkroom.ui.theme.Chalkroom
@@ -78,8 +74,8 @@ fun ChooseStudentScreen(
 }
 
 /**
- * Title, then the screen split into three equal boxes (Mira, Pip, Juno), each with its student big
- * and centred, then a gold Continue pinned at the bottom. Tapping a box picks that student; only
+ * Title, then the screen split into three equal edge-to-edge bands (Mira, Pip, Juno), each washed
+ * in its student's colour with the student big and centred, then a gold Continue pinned at the bottom. Tapping a box picks that student; only
  * Continue moves on.
  */
 @Composable
@@ -92,10 +88,7 @@ fun ChooseStudentContent(state: UiState, onEvent: (UiEvent) -> Unit) {
             style = Chalkroom.type.headline,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 12.dp),
         )
-        Column(
-            Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+        Column(Modifier.weight(1f).fillMaxWidth()) {
             val order = state.students.map { it.studentId }
             state.students.forEachIndexed { i, choice ->
                 val picked = state.selected
@@ -164,9 +157,9 @@ private const val MOTE_ROOM = 0.09f
 private const val PIP_TIP = 0.33f
 
 /**
- * One student's box: a card on a ledge (the student's colour once picked), the name and self-intro
- * across the top, the student big and centred below, cropped by the box's bottom edge but free to
- * jump out of its top. The box presses down onto its ledge under a finger.
+ * One student's band: edge to edge, filled with a soft wash of the student's colour (deeper once
+ * picked), the name and self-intro across the top, the student big and centred below, cropped by
+ * the band's bottom edge but free to jump out of its top.
  */
 @Composable
 private fun StudentBox(
@@ -180,13 +173,10 @@ private fun StudentBox(
     val reduced = Chalkroom.reducedMotion
     val id = choice.studentId
     val profile = StudentCatalog[id]
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val depth = BUTTON_LEDGE_DP.dp
-    val press by animateDpAsState(
-        if (pressed) depth else 0.dp,
-        spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessHigh),
-        label = "press",
+    val wash by animateFloatAsState(
+        if (selected) PICKED_WASH else WASH,
+        if (reduced) snap() else tween(220),
+        label = "wash",
     )
 
     val pose = remember { Pose() }
@@ -201,41 +191,36 @@ private fun StudentBox(
         pose.idleLoop(id)
     }
 
-    Box(
-        modifier
-            .padding(bottom = depth)
-            .clickable(interaction, indication = null, role = Role.Button, onClick = onClick)
+    Layout(
+        content = {
+            BoxText(choice)
+            StudentSlot(choice, pose)
+        },
+        modifier = modifier
+            .background(profile.color.copy(alpha = wash).compositeOver(colors.page))
+            .clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onClick)
             .semantics { this.selected = selected },
-    ) {
-        Box(Modifier.matchParentSize().offset(y = depth).clip(CardShape).background(if (selected) profile.color else colors.line))
-        Box(
-            Modifier.matchParentSize().offset(y = press).clip(CardShape).background(colors.card)
-                .border(2.dp, colors.ink, CardShape),
-        )
-        Layout(
-            content = {
-                BoxText(choice)
-                StudentSlot(choice, pose)
-            },
-            modifier = Modifier.matchParentSize().offset(y = press),
-        ) { (text, figure), c ->
-            val pad = 14.dp.roundToPx()
-            val border = 2.dp.roundToPx()
-            val t = text.measure(Constraints(maxWidth = c.maxWidth - 2 * pad))
-            val gap = 4.dp.roundToPx()
-            val room = c.maxHeight - border - (pad + t.height + gap)
-            // A paused lesson's motes ride in an arc above the head: keep the text clear of them too.
-            val top = if (choice.motes.isEmpty()) id.headTop() else minOf(id.headTop(), StudentShapes.face(id).moteTop - MOTE_ROOM)
-            val w = minOf(room / (FIGURE_H - top), c.maxWidth * 0.5f).toInt().coerceAtLeast(1)
-            val h = (w * FIGURE_H).toInt()
-            val f = figure.measure(Constraints.fixed(w, h))
-            layout(c.maxWidth, c.maxHeight) {
-                t.place(pad, pad)
-                f.place((c.maxWidth - w) / 2, c.maxHeight - border - h)
-            }
+    ) { (text, figure), c ->
+        val padX = 16.dp.roundToPx()
+        val padTop = 12.dp.roundToPx()
+        val t = text.measure(Constraints(maxWidth = c.maxWidth - 2 * padX))
+        val gap = 4.dp.roundToPx()
+        val room = c.maxHeight - (padTop + t.height + gap)
+        // A paused lesson's motes ride in an arc above the head: keep the text clear of them too.
+        val top = if (choice.motes.isEmpty()) id.headTop() else minOf(id.headTop(), StudentShapes.face(id).moteTop - MOTE_ROOM)
+        val w = minOf(room / (FIGURE_H - top), c.maxWidth * 0.5f).toInt().coerceAtLeast(1)
+        val h = (w * FIGURE_H).toInt()
+        val f = figure.measure(Constraints.fixed(w, h))
+        layout(c.maxWidth, c.maxHeight) {
+            t.place(padX, padTop)
+            f.place((c.maxWidth - w) / 2, c.maxHeight - h)
         }
     }
 }
+
+/** The band's wash of the student's colour over the page, at rest and once picked. */
+private const val WASH = 0.18f
+private const val PICKED_WASH = 0.30f
 
 @Composable
 private fun BoxText(choice: ChooseStudentContract.Choice) {
