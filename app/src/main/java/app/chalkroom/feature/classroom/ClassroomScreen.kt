@@ -109,6 +109,8 @@ import kotlin.random.Random
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -227,6 +229,11 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
     // When Pip may next throw paper at the bin (elapsed realtime): a few seconds after the entering
     // look, the board read or a wake-up. Dropped if it's too soon after the last throw.
     var throwAt by remember { mutableStateOf<Long?>(null) }
+    // Scripted scenes between the students: one at a time, the next ambient one due 10 s after
+    // the last scene (or tap bubble) ends; null while one plays or before the visit's entry scene.
+    val player = remember { ScenePlayer() }
+    var sceneJob by remember { mutableStateOf<Job?>(null) }
+    var ambientDue by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(state.lightsOn) {
         if (!state.lightsOn || dark.value == 0f) return@LaunchedEffect
         // ~600 ms warm-up with two soft dips, then the students wake one by one, then the button.
@@ -261,6 +268,8 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
         settled = true
         pipWaves++
         throwAt = SystemClock.elapsedRealtime() + THROW_AFTER_MS
+        // No entry scene after the wake-up: the ambient clock starts here.
+        ambientDue = SystemClock.elapsedRealtime() + AMBIENT_AFTER_MS
     }
     LaunchedEffect(flicks) {
         if (flicks == 0 || reduced) return@LaunchedEffect
@@ -299,32 +308,57 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
         motesShown = true
     }
 
-    // In view: this screen's lifecycle is started (back from a lesson, the app in the foreground).
+    // In view: this screen is resumed (back from a lesson, the app in the foreground). That's a visit.
     val inView by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
-    val visible = inView.isAtLeast(Lifecycle.State.STARTED)
+    val visible = inView.isAtLeast(Lifecycle.State.RESUMED)
     val lightsOn by rememberUpdatedState(state.lightsOn)
+    val bubbleNow by rememberUpdatedState(state.bubble)
 
-    // Walking in: all three turn to look at you, a little apart, then back to their idle.
+    /** Plays [scene] as a child job a tap on a student can cancel; returns when it ends either way. */
+    suspend fun playScene(scene: Scene) = coroutineScope {
+        val job = launch { player.play(scene, reduced) }
+        sceneJob = job
+        job.join()
+        sceneJob = null
+    }
+
+    // Walking in: an entry scene you catch them in, unless you were here moments ago; then all
+    // three turn to look at you, a little apart, and back to their idle. With the lights off,
+    // neither: the wake-up starts the room instead.
     var noticeTicks by remember { mutableStateOf(StudentId.entries.associateWith { 0 }) }
     LaunchedEffect(visible) {
-        if (!visible || reduced || !lightsOn) return@LaunchedEffect
-        val now = SystemClock.elapsedRealtime()
-        if (now - Notice.lastAt < NOTICE_AGAIN_MS) return@LaunchedEffect
-        Notice.lastAt = now
-        life.quiet = true
+        if (!visible) return@LaunchedEffect
         try {
-            delay(if (stagger) 900 else 250)
-            noticeOrder.forEach {
-                noticeTicks = noticeTicks + (it to noticeTicks.getValue(it) + 1)
-                if (it == StudentId.PIP) pipWaves++
-                delay(NOTICE_GAP_MS)
+            if (lightsOn && settled) {
+                ambientDue = null
+                life.quiet = true
+                try {
+                    delay(if (stagger) ENTRY_AFTER_STAGGER_MS else ENTRY_AFTER_MS)
+                    ScenePicker.session.visitStarted(SystemClock.elapsedRealtime())?.let { entry ->
+                        snapshotFlow { bubbleNow != null || life.busy }.first { !it }
+                        playScene(entry)
+                    }
+                    val now = SystemClock.elapsedRealtime()
+                    if (!reduced && now - Notice.lastAt >= NOTICE_AGAIN_MS) {
+                        Notice.lastAt = now
+                        delay(250)
+                        noticeOrder.forEach {
+                            noticeTicks = noticeTicks + (it to noticeTicks.getValue(it) + 1)
+                            if (it == StudentId.PIP) pipWaves++
+                            delay(NOTICE_GAP_MS)
+                        }
+                        delay(WAVE_SWAY_MS + 400L)
+                        throwAt = SystemClock.elapsedRealtime() + THROW_AFTER_MS
+                    }
+                } finally {
+                    life.quiet = false
+                }
+                ambientDue = SystemClock.elapsedRealtime() + AMBIENT_AFTER_MS
             }
-            delay(WAVE_SWAY_MS + 400L)
+            awaitCancellation()
         } finally {
-            life.quiet = false
+            ScenePicker.session.visitEnded(SystemClock.elapsedRealtime())
         }
-        life.touch()
-        throwAt = SystemClock.elapsedRealtime() + THROW_AFTER_MS
     }
 
     // A paused lesson calls: every 8–12 s its student hops and leans toward you, while the room is
@@ -348,12 +382,9 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
     }
 
     // Classroom life, one thing at a time once the room is lit and settled: the classmates read a new
-    // board, Pip throws paper at the bin, and after 10 s of nothing the room dozes off.
-    val bubbleNow by rememberUpdatedState(state.bubble)
+    // board, Pip throws paper at the bin, and every 10 s after the last scene the students play another.
     val learnedNow by rememberUpdatedState(state.learned)
-    val callerNow by rememberUpdatedState(caller)
-    var dozing by remember { mutableStateOf(emptySet<StudentId>()) }
-    var wakes by remember { mutableIntStateOf(0) }
+    val seatsNow by rememberUpdatedState(state.seats)
     var reading by remember { mutableStateOf(emptyMap<StudentId, Offset>()) }
     var slowNods by remember { mutableStateOf(StudentId.entries.associateWith { 0 }) }
     var proudId by remember { mutableStateOf<StudentId?>(null) }
@@ -361,47 +392,24 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
     var pipWatching by remember { mutableStateOf(false) }
     var flight by remember { mutableStateOf<Flight?>(null) }
     var floorBalls by remember { mutableStateOf(PaperBin.session.onFloor) }
-    val scope = rememberCoroutineScope()
 
-    fun wake() {
-        if (dozing.isEmpty()) return
-        // Hold the floor while they jolt awake, then let Pip throw a little later.
-        life.quiet = true
-        dozing = emptySet()
-        wakes++
-        scope.launch {
-            try {
-                delay(WAKE_JOLT_MS)
-            } finally {
-                life.quiet = false
-                life.napping = false
-            }
-            life.touch()
-            throwAt = SystemClock.elapsedRealtime() + THROW_AFTER_MS
-        }
+    // A tap bubble going away counts as a scene ending: the next one is 10 s after it.
+    LaunchedEffect(state.bubble) {
+        if (state.bubble == null && ambientDue != null) ambientDue = SystemClock.elapsedRealtime() + AMBIENT_AFTER_MS
     }
-
-    // Out of view, nobody stays asleep: coming back is a fresh visit.
-    LaunchedEffect(visible) {
-        if (!visible) {
-            dozing = emptySet()
-            life.napping = false
-        }
-    }
-    LaunchedEffect(state.bubble) { if (state.bubble == null) life.touch() }
 
     LaunchedEffect(visible, settled, state.lightsOn) {
-        if (!visible || !settled || !state.lightsOn || reduced) return@LaunchedEffect
-        life.touch()
+        if (!visible || !settled || !state.lightsOn) return@LaunchedEffect
         delay(400)
         while (true) {
-            snapshotFlow { life.quiet || life.busy || bubbleNow != null || glancing || dozing.isNotEmpty() }.first { !it }
+            snapshotFlow { life.quiet || life.busy || bubbleNow != null || glancing }.first { !it }
             val now = SystemClock.elapsedRealtime()
             val learned = learnedNow
             val due = throwAt
+            val sceneDue = ambientDue
             when {
                 // B: the other two read what was just taught; the one who learned it sits up.
-                learned != null && learned != BoardRead.last -> {
+                !reduced && learned != null && learned != BoardRead.last -> {
                     BoardRead.last = learned
                     life.quiet = true
                     try {
@@ -435,11 +443,10 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
                         proudId = null
                         life.quiet = false
                     }
-                    life.touch()
                     throwAt = SystemClock.elapsedRealtime() + THROW_AFTER_MS
                 }
                 // C: Pip and the bin.
-                due != null && now >= due -> {
+                !reduced && due != null && now >= due -> {
                     throwAt = null
                     if (PaperBin.session.canThrow(now)) {
                         val toss = PaperBin.session.toss(now)
@@ -478,18 +485,19 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
                             proudId = null
                             life.quiet = false
                         }
-                        life.touch()
                     }
                 }
-                // A: nothing for a while, so everyone but a calling student dozes off, one by one.
-                now - life.lastActivityAt >= DOZE_AFTER_MS -> {
-                    val run = wakes
-                    life.napping = true
-                    for (id in noticeOrder.filter { it != callerNow }) {
-                        if (wakes != run) break
-                        dozing = dozing + id
-                        delay(DOZE_GAP_MS)
+                // Scenes: the next ambient one, 10 s after the last scene ended.
+                sceneDue != null && now >= sceneDue -> {
+                    ambientDue = null
+                    val paused = seatsNow.filter { it.paused }.map { it.studentId }.toSet()
+                    life.quiet = true
+                    try {
+                        playScene(ScenePicker.session.nextAmbient(paused))
+                    } finally {
+                        life.quiet = false
                     }
+                    ambientDue = SystemClock.elapsedRealtime() + AMBIENT_AFTER_MS
                 }
                 else -> delay(200)
             }
@@ -499,14 +507,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
-            .background(Chalkroom.colors.page)
-            // Any touch in the room counts as something happening, so nobody dozes off under your finger.
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                    life.touch()
-                }
-            },
+            .background(Chalkroom.colors.page),
     ) {
         val w = maxWidth
         val h = maxHeight
@@ -546,7 +547,10 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
                 place = place,
                 waveTick = if (id == StudentId.PIP) pipWaves else 0,
                 life = life.forStudent(id),
-                asleep = id !in awake || id in dozing,
+                asleep = id !in awake,
+                pose = player.poses[id],
+                sceneHops = player.hops.getValue(id),
+                sceneNods = player.nods.getValue(id),
                 startle = settled,
                 glanceAtSwitch = glancing,
                 readAt = reading[id] ?: if (id == StudentId.PIP && pipWatching) towardBin else null,
@@ -559,6 +563,8 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
                 noticeTick = noticeTicks.getValue(id),
                 callTick = if (id == caller) callTick else 0,
                 onTap = {
+                    // A tap ends a scene at once; the tapped student's own line takes over.
+                    sceneJob?.cancel()
                     if (id == caller) calling = false
                     onEvent(UiEvent.StudentTapped(id))
                 },
@@ -575,7 +581,7 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
         flight?.let { PaperFlight(it, Modifier.fillMaxSize()) }
 
         SpeechBubble(
-            bubble = state.bubble,
+            bubble = player.bubble ?: state.bubble,
             reduced = reduced,
             avoid = { id ->
                 buildList {
@@ -623,20 +629,6 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
                 .size(switchSize),
         )
 
-        // Dozing: the first tap anywhere only wakes them (the button above still works as usual).
-        if (dozing.isNotEmpty()) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        awaitEachGesture {
-                            awaitFirstDown().consume()
-                            wake()
-                        }
-                    },
-            )
-        }
-
         if (buttonShown) {
             PrimaryButton(
                 "Teach something",
@@ -656,9 +648,9 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, flicks: Int = 0
 }
 
 private const val WAKE_GAP_MS = 260L
-private const val DOZE_AFTER_MS = 10_000L
-private const val DOZE_GAP_MS = 600L
-private const val WAKE_JOLT_MS = 1_400L
+private const val AMBIENT_AFTER_MS = 10_000L
+private const val ENTRY_AFTER_MS = 500L
+private const val ENTRY_AFTER_STAGGER_MS = 1_100L
 private const val READ_TURN_MS = 380L
 private const val READ_SCAN_MS = 1_500L
 private const val THROW_AFTER_MS = 3_000L
@@ -1075,6 +1067,9 @@ private fun Seat(
     proud: Boolean = false,
     extraHops: Int = 0,
     headroom: Dp = 0.dp,
+    pose: ScenePose? = null,
+    sceneHops: Int = 0,
+    sceneNods: Int = 0,
 ) {
     val kind = life?.kind
     val id = seat.studentId
@@ -1123,20 +1118,26 @@ private fun Seat(
     )
     StudentAtDesk(
         studentId = id,
-        expression = Expression.IDLE,
+        expression = pose?.face?.expression ?: Expression.IDLE,
         motes = seat.motes,
         notebookOpen = seat.paused,
-        lookAt = if (glanceAtSwitch) towardSwitch else readAt ?: kind?.lookAt ?: restGaze[id],
-        hopTick = (if (kind == LifeKind.PIP_BOUNCE) life?.tick ?: 0 else 0) + extraHops + waveHops,
+        // In a scene, the scene says where they look (null: the face's own look).
+        lookAt = when {
+            glanceAtSwitch -> towardSwitch
+            pose != null -> pose.lookAt
+            else -> readAt ?: kind?.lookAt ?: restGaze[id]
+        },
+        hopTick = (if (kind == LifeKind.PIP_BOUNCE) life?.tick ?: 0 else 0) + extraHops + waveHops + sceneHops,
+        nodTick = sceneNods,
         propMotion = propMotion,
         doodleStrokes = doodleStrokes,
-        asleep = asleep,
+        asleep = asleep || pose?.face?.asleep == true,
         noticeTick = noticeTick + waveLooks,
         callTick = callTick,
         startle = startle,
         headX = headX,
         slowNodTick = slowNodTick,
-        proud = proud || waving,
+        proud = proud || waving || pose?.face?.proud == true,
         rise = place.rise,
         figureScale = place.scale,
         sway = sway.value,
@@ -1229,12 +1230,7 @@ private fun rememberRoomLife(enabled: Boolean): RoomLifeState {
         var last: LifeKind? = null
         while (true) {
             delay(Random.nextLong(12_000, 20_000))
-            // Held back by a nap: wait for the wake-up, then start the wait over, so it doesn't fire on waking.
-            if (state.napping) {
-                snapshotFlow { state.napping }.first { !it }
-                continue
-            }
-            snapshotFlow { state.quiet || state.napping }.first { !it }
+            snapshotFlow { state.quiet }.first { !it }
             val kind = lifeBag.filter { it != last }.random()
             last = kind
             state.start(kind)
@@ -1253,19 +1249,8 @@ private class RoomLifeState {
     var doodles by mutableIntStateOf(0)
         private set
 
-    /** Someone else is moving (walking in, a lesson calling): hold off until they're done. */
+    /** Someone else is moving (walking in, a scene, a lesson calling): hold off until they're done. */
     var quiet by mutableStateOf(false)
-
-    /** Students are dozing: nobody doodles or fidgets in their sleep. */
-    var napping by mutableStateOf(false)
-
-    /** When something last happened in the room (a touch, or a move ending), elapsed realtime. */
-    var lastActivityAt = SystemClock.elapsedRealtime()
-        private set
-
-    fun touch() {
-        lastActivityAt = SystemClock.elapsedRealtime()
-    }
 
     val busy: Boolean get() = current != null
 
@@ -1277,7 +1262,6 @@ private class RoomLifeState {
 
     fun stop() {
         current = null
-        touch()
     }
 
     /** What [id] is doing right now, if anything. */
