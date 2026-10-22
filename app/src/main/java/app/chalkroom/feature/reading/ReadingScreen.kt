@@ -111,7 +111,7 @@ fun ReadingContent(state: UiState, onEvent: (UiEvent) -> Unit) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Top) {
                     when (phase) {
                         Phase.READING, Phase.REVEALING -> Unit // no spinner, no percentage: the student is reading
-                        Phase.COUNTED -> LineCard(ReadingContract.countLine(state.motes.size), Modifier.fillMaxWidth())
+                        Phase.COUNTED -> ReadingLineCard(ReadingContract.countLine(state.motes.size))
                         Phase.EMPTY -> Message(
                             text = "There was nothing in these notes for $name to misunderstand.",
                             primary = "Back to my notes" to { onEvent(UiEvent.BackToNotes) },
@@ -192,10 +192,16 @@ private fun WordFlight(word: String, from: Offset, to: Offset, color: Color, red
     )
 }
 
+/** The student's line on the dark slate: a lighter surface with a chalk outline, so the card reads. */
+@Composable
+private fun ReadingLineCard(text: String) {
+    LineCard(text, Modifier.fillMaxWidth(), surface = Chalkroom.colors.ink2, outline = Chalkroom.colors.card)
+}
+
 /** Calm, in the student's voice, with the way forward. */
 @Composable
 private fun Message(text: String, primary: Pair<String, () -> Unit>, secondary: Pair<String, () -> Unit>? = null) {
-    LineCard(text, Modifier.fillMaxWidth())
+    ReadingLineCard(text)
     Spacer(Modifier.height(18.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         PrimaryButton(primary.first, primary.second, Modifier.weight(1f))

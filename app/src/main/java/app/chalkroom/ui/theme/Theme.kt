@@ -48,8 +48,8 @@ data class ChalkroomColors(
     val woodDark: Color = Color(0xFFD39740),
     val woodDeep: Color = Color(0xFFB9792C),
     val board: Color = Color(0xFF3E5149),
-    // Reading: the trail of the notes rain on the slate, a pale cool chalk-green.
-    val rain: Color = Color(0xFF98EDBE),
+    // Reading: the trail of the notes rain on the slate, the film's phosphor green.
+    val rain: Color = Color(0xFF1FEF64),
     val chair: Color = Color(0xFF5B6680),
     // Lights off: the deep navy wash over the dark room, and the switch's warm glow.
     val night: Color = Color(0xFF0A1230),

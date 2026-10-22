@@ -2,7 +2,6 @@ package app.chalkroom.feature.reading
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -17,35 +16,43 @@ class NotesRainTest {
         pathway that copes better with heat and keeps stomata closed for longer.
     """.trimIndent()
     private val text = RainText.from(notes, seed = 7)
-    private val rows = IntArray(30) { 40 + it % 3 * 12 }
+    private val columns = 28
+    private val rows = 70
 
-    /** Each column's lit cells top to bottom, cut into words at the gaps (the top and bottom ones may be partial). */
-    private fun streams(rain: NotesRain): Map<Int, List<Pair<String, Boolean>>> {
+    /**
+     * Each stream's lit cells top to bottom, cut into words at the gaps (the top and bottom ones may be
+     * partial). Two streams in one column are told apart by the empty rows between them.
+     */
+    private fun streams(rain: NotesRain): List<List<Pair<String, Boolean>>> {
         val cells = sortedMapOf<Int, MutableList<Triple<Int, Char, Boolean>>>()
         rain.forEachCell { column, row, glyph, _, _, highlighted -> cells.getOrPut(column) { mutableListOf() } += Triple(row, glyph, highlighted) }
-        return cells.mapValues { (_, list) ->
-            val words = mutableListOf<Pair<String, Boolean>>()
+        return cells.values.flatMap { list ->
+            val streams = mutableListOf<MutableList<Pair<String, Boolean>>>()
+            var words = mutableListOf<Pair<String, Boolean>>()
             var word = StringBuilder()
             var lit = false
-            var lastRow = -2
+            var lastRow = -100
             for ((row, glyph, highlighted) in list.sortedBy { it.first }) {
                 if (row != lastRow + 1 && word.isNotEmpty()) { words += word.toString() to lit; word = StringBuilder() }
+                // A word gap skips one row; more than that is the space between two streams.
+                if (row > lastRow + 2 && words.isNotEmpty()) { streams += words; words = mutableListOf() }
                 word.append(glyph)
                 lit = highlighted
                 lastRow = row
             }
             if (word.isNotEmpty()) words += word.toString() to lit
-            words
+            if (words.isNotEmpty()) streams += words
+            streams
         }
     }
 
     @Test
     fun `words come out in notes order inside a stream`() {
-        val rain = NotesRain(text, rows, seed = 1, flickerOneIn = 0)
+        val rain = NotesRain(text, columns, rows, seed = 1, flickerOneIn = 0)
         var checked = 0
         repeat(120) {
             rain.advance(0.05f)
-            streams(rain).values.forEach { words ->
+            streams(rain).forEach { words ->
                 // Inner words are whole; consecutive whole words must follow each other in the notes.
                 val whole = words.drop(1).dropLast(1).map { it.first }
                 whole.zipWithNext().forEach { (a, b) ->
@@ -60,17 +67,15 @@ class NotesRainTest {
 
     @Test
     fun `streams restart from the top after leaving the bottom`() {
-        val rain = NotesRain(text, rows, seed = 2)
+        val rain = NotesRain(text, columns, rows, seed = 2)
         val first = IntArray(rain.columns) { rain.generation(it) }
         var sawRestartAtTop = false
-        repeat(400) {
+        repeat(1_000) {
             val before = IntArray(rain.columns) { rain.generation(it) }
-            rain.advance(0.05f)
+            rain.advance(0.02f)
             for (c in 0 until rain.columns) {
                 if (rain.generation(c) > before[c]) {
-                    val head = rain.headRow(c)
-                    assertNotNull(head)
-                    assertTrue(head!! < 2f, "a restarted stream begins at the top")
+                    assertTrue(rain.headRows(c).any { it < 2f }, "a restarted stream begins at the top")
                     sawRestartAtTop = true
                 }
             }
@@ -83,22 +88,22 @@ class NotesRainTest {
     fun `highlighted words are never adjacent in the same stream`() {
         val n = text.words.size
         for (i in 0 until n) assertFalse(text.highlighted[i] && text.highlighted[(i + 1) % n], "words $i and ${i + 1} both highlighted")
-        val rain = NotesRain(text, rows, seed = 3, flickerOneIn = 0)
+        val rain = NotesRain(text, columns, rows, seed = 3, flickerOneIn = 0)
         repeat(200) {
             rain.advance(0.05f)
-            streams(rain).values.forEach { words ->
+            streams(rain).forEach { words ->
                 words.zipWithNext().forEach { (a, b) -> assertFalse(a.second && b.second, "\"${a.first}\" and \"${b.first}\" touch") }
             }
         }
     }
 
     @Test
-    fun `about one in six falling words is highlighted, key terms first`() {
-        val rain = NotesRain(text, rows, seed = 4)
+    fun `about one in twelve falling words is highlighted, key terms first`() {
+        val rain = NotesRain(text, columns, rows, seed = 4)
         repeat(2_000) { rain.advance(0.05f) }
         val ratio = rain.highlightedFallen.toFloat() / rain.wordsFallen
         assertTrue(rain.wordsFallen > 500)
-        assertTrue(ratio in 0.11f..0.23f, "ratio $ratio")
+        assertTrue(ratio in 0.05f..0.12f, "ratio $ratio")
         // Repeated or mid-sentence capitalised words are chosen before plain long words.
         val keyTerms = setOf("photosynthesis", "light", "calvin", "cycle", "sugar", "stomata", "carbon", "dioxide", "water", "plants", "reactions", "kenya", "brazil", "atp", "nadph")
         assertTrue(text.keyWords.isNotEmpty())
@@ -107,8 +112,8 @@ class NotesRainTest {
 
     @Test
     fun `reduced motion is one frozen frame`() {
-        val rain = NotesRain(text, rows, seed = 5, frozen = true)
-        fun frame(): List<String> = buildList { rain.forEachCell { c, r, g, f, h, l -> add("$c:$r:$g:$f:$h:$l") } }
+        val rain = NotesRain(text, columns, rows, seed = 5, frozen = true)
+        fun frame(): List<String> = buildList { rain.forEachCell { c, r, g, b, f, l -> add("$c:$r:$g:$b:$f:$l") } }
         val before = frame()
         assertTrue(before.isNotEmpty(), "the still frame shows rain")
         rain.advance(5f)
@@ -118,10 +123,43 @@ class NotesRainTest {
     @Test
     fun `short notes still rain`() {
         val short = RainText.from("Cells divide.")
-        val rain = NotesRain(short, IntArray(5) { 30 }, seed = 6)
+        val rain = NotesRain(short, 5, 30, seed = 6)
         rain.advance(2f)
         var lit = 0
         rain.forEachCell { _, _, _, _, _, _ -> lit++ }
         assertTrue(lit > 0)
+    }
+
+    @Test
+    fun `most columns are raining at once, some with two streams, never touching`() {
+        val rain = NotesRain(text, columns, rows, seed = 8)
+        var litShare = 0f
+        var frames = 0
+        var doubles = 0
+        repeat(1_500) {
+            rain.advance(1f / 30f)
+            val byColumn = HashMap<Int, MutableList<Int>>()
+            rain.forEachCell { c, r, _, _, _, _ -> byColumn.getOrPut(c) { mutableListOf() } += r }
+            byColumn.values.forEach { rowsLit -> assertEquals(rowsLit.size, rowsLit.toSet().size, "two streams overlap") }
+            for (c in 0 until columns) {
+                if (rain.headRows(c).size == 2) doubles++
+            }
+            litShare += byColumn.size.toFloat() / columns
+            frames++
+        }
+        val share = litShare / frames
+        assertTrue(share in 0.58f..0.72f, "share $share")
+        assertTrue(doubles > 0)
+    }
+
+    @Test
+    fun `the head is a stream's brightest cell and the trail fades above it`() {
+        val rain = NotesRain(text, columns, rows, seed = 9, flickerOneIn = 0)
+        rain.advance(1f)
+        rain.forEachCell { _, row, _, behind, fade, _ ->
+            assertTrue(behind >= 0 && row >= 0 && row < rows)
+            if (behind == 0) assertEquals(1f, fade)
+            else assertTrue(fade < 1f)
+        }
     }
 }

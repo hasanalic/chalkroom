@@ -22,10 +22,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -176,37 +178,62 @@ fun LightCard(
 
 private val NOTCH_W = 22.dp
 private val NOTCH_H = 11.dp
+/** The chalk outline a [LineCard] can carry where its surface would vanish into a dark slate. */
+private val LINE_OUTLINE = 2.dp
 
 /**
  * The single card that holds what a student is saying right now: dark, with a notch on top
  * pointing up at the student, on a lavender ledge. Never a chat bubble list.
  */
 @Composable
-fun LineCard(text: String, modifier: Modifier = Modifier, content: (@Composable BoxScope.() -> Unit)? = null) {
+fun LineCard(
+    text: String,
+    modifier: Modifier = Modifier,
+    surface: Color = Chalkroom.colors.ink,
+    outline: Color? = null,
+    content: (@Composable BoxScope.() -> Unit)? = null,
+) {
     val colors = Chalkroom.colors
     Box(
         modifier
             .padding(top = NOTCH_H)
-            .drawBehind {
+            .drawWithContent {
+                drawContent()
                 val w = NOTCH_W.toPx()
                 val h = NOTCH_H.toPx()
                 val cx = size.width / 2
+                // With an outline, the notch covers the card's border where they meet and carries it up its sides.
+                val base = if (outline != null) LINE_OUTLINE.toPx() + 1f else 1f
                 drawPath(
                     Path().apply {
-                        moveTo(cx - w / 2, 1f)
+                        moveTo(cx - w / 2, base)
                         lineTo(cx, -h)
-                        lineTo(cx + w / 2, 1f)
+                        lineTo(cx + w / 2, base)
                         close()
                     },
-                    colors.ink,
+                    surface,
                 )
+                if (outline != null) {
+                    val stroke = LINE_OUTLINE.toPx()
+                    drawPath(
+                        Path().apply {
+                            moveTo(cx - w / 2 - stroke / 2, stroke / 2)
+                            lineTo(cx, -h)
+                            lineTo(cx + w / 2 + stroke / 2, stroke / 2)
+                        },
+                        outline,
+                        style = Stroke(width = stroke, join = StrokeJoin.Round),
+                    )
+                }
             },
     ) {
         Ledge(
             shape = CardShape,
-            color = colors.ink,
+            color = surface,
             ledgeColor = colors.lavender2,
             modifier = Modifier.fillMaxWidth(),
+            border = outline,
+            borderWidth = LINE_OUTLINE,
             contentModifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
         ) {
             if (content != null) content() else Text(text, style = Chalkroom.type.studentLine)

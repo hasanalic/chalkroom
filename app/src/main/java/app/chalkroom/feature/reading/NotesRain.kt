@@ -5,7 +5,7 @@ import kotlin.random.Random
 
 /**
  * The notes laid out for the rain: every word in notes order as one strip of glyphs with an empty
- * cell after each word, and the key terms the rain highlights (about 1 in 6 words, never two in a row).
+ * cell after each word, and the key terms the rain highlights (about 1 in 12 words, never two in a row).
  */
 class RainText private constructor(val words: List<String>, val highlighted: BooleanArray) {
     /** Every glyph in order; [GAP] is the empty cell between words. */
@@ -36,7 +36,7 @@ class RainText private constructor(val words: List<String>, val highlighted: Boo
 
     companion object {
         const val GAP = ' '
-        const val HIGHLIGHT_SHARE = 1f / 6f
+        const val HIGHLIGHT_SHARE = 1f / 12f
         const val LONG_WORD = 7
 
         private val WORD = Regex("""[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*""")
@@ -82,26 +82,31 @@ class RainText private constructor(val words: List<String>, val highlighted: Boo
     }
 }
 
-/** Visits one lit cell of the rain. [fade] is 1 at the head and steps down to nothing along the trail. */
+/**
+ * Visits one lit cell of the rain. [behind] is 0 at the head and counts cells up the trail; [fade] is 1
+ * at the head and steps down to nothing at the trail's end.
+ */
 fun interface RainCellVisitor {
-    fun cell(column: Int, row: Int, glyph: Char, fade: Float, head: Boolean, highlighted: Boolean)
+    fun cell(column: Int, row: Int, glyph: Char, behind: Int, fade: Float, highlighted: Boolean)
 }
 
 /**
- * The rain's model, apart from drawing: one stream per column falling top to bottom, spelling the
- * notes' words in order from a random starting word, each with its own speed, trail and pause.
- * Seeded, so tests and the still frame are repeatable. [frozen] never moves and never flickers.
+ * The rain's model, apart from drawing: a grid of [columns] by [rows] cells, each column carrying up to
+ * [LANES] streams falling top to bottom, spaced apart, each spelling the notes' words in order from a
+ * random starting word with its own speed, trail and pause. A stream never catches the one below it,
+ * so no two streams in a column touch. Seeded, so tests and the still frame are repeatable. [frozen]
+ * never moves and never flickers.
  */
 class NotesRain(
     private val text: RainText,
-    /** Rows in each column (columns have different cell sizes, so different row counts). */
-    private val rows: IntArray,
+    val columns: Int,
+    private val rows: Int,
     seed: Long,
     val frozen: Boolean = false,
-    private val flickerOneIn: Int = 25,
+    private val flickerOneIn: Int = FLICKER_ONE_IN,
 ) {
     private val random = Random(seed)
-    private val n = rows.size
+    private val n = columns * LANES
     private val active = BooleanArray(n)
     private val head = FloatArray(n)
     private val wait = FloatArray(n)
@@ -117,10 +122,8 @@ class NotesRain(
     var highlightedFallen = 0
         private set
 
-    val columns: Int get() = n
-
     init {
-        for (c in 0 until n) wait[c] = random.nextFloat() * FIRST_DELAY_S
+        for (s in 0 until n) wait[s] = random.nextFloat() * if (s % LANES == 0) FIRST_DELAY_S else FIRST_DELAY_S * 2
         // Start mid-rain, so the first frame (and the still frame) already has streams in it.
         repeat((PREWARM_S / STEP_S).toInt()) { step(STEP_S) }
     }
@@ -130,28 +133,29 @@ class NotesRain(
         step(seconds)
     }
 
-    /** How many streams this column has started; it grows each time the column restarts from the top. */
-    fun generation(column: Int): Int = generation[column]
+    /** How many streams this column has started; it grows each time a stream starts from the top. */
+    fun generation(column: Int): Int = (0 until LANES).sumOf { generation[column * LANES + it] }
 
-    /** The head's row, or null while the column waits between streams. */
-    fun headRow(column: Int): Float? = if (active[column]) head[column] else null
+    /** The rows of this column's falling heads, empty while the column waits. */
+    fun headRows(column: Int): List<Float> = (0 until LANES).map { column * LANES + it }.filter { active[it] }.map { head[it] }
 
     fun forEachCell(visit: RainCellVisitor) {
         val size = text.glyphs.size
-        for (c in 0 until n) {
-            if (!active[c]) continue
-            val h = floor(head[c]).toInt()
-            val len = trail[c]
+        for (s in 0 until n) {
+            if (!active[s]) continue
+            val c = s / LANES
+            val h = floor(head[s]).toInt()
+            val len = trail[s]
             val top = maxOf(0, h - len + 1)
-            val bottom = minOf(rows[c] - 1, h)
+            val bottom = minOf(rows - 1, h)
             for (r in top..bottom) {
-                val g = (start[c] + r) % size
+                val g = (start[s] + r) % size
                 var glyph = text.glyphs[g]
                 if (glyph == RainText.GAP) continue
                 val d = h - r
                 val word = text.wordAt[g]
                 if (d > 0 && !frozen && flickerOneIn > 0) {
-                    val hash = mix(c, r, generation[c])
+                    val hash = mix(s, r, generation[s])
                     if (Math.floorMod(hash, flickerOneIn) == 0) {
                         val period = FLICKER_MIN_PERIOD_S + Math.floorMod(hash ushr 8, 1000) / 1000f * FLICKER_PERIOD_SPREAD_S
                         val phase = Math.floorMod(hash ushr 4, 997) / 997f * period
@@ -161,42 +165,56 @@ class NotesRain(
                         }
                     }
                 }
-                visit.cell(c, r, glyph, 1f - d.toFloat() / len, d == 0, text.highlighted[word])
+                visit.cell(c, r, glyph, d, 1f - d.toFloat() / len, text.highlighted[word])
             }
         }
     }
 
     private fun step(dt: Float) {
         time += dt
-        for (c in 0 until n) {
-            if (!active[c]) {
-                wait[c] -= dt
-                if (wait[c] <= 0f) launch(c)
+        for (s in 0 until n) {
+            if (!active[s]) {
+                wait[s] -= dt
+                if (wait[s] <= 0f && !launch(s)) wait[s] = RETRY_S
                 continue
             }
-            val before = floor(head[c]).toInt()
-            head[c] += speed[c] * dt
-            val after = floor(head[c]).toInt()
-            for (r in before + 1..minOf(after, rows[c] - 1)) countWord(c, r)
-            if (head[c] - trail[c] >= rows[c]) {
-                active[c] = false
-                wait[c] = PAUSE_MIN_S + random.nextFloat() * (PAUSE_MAX_S - PAUSE_MIN_S)
+            val before = floor(head[s]).toInt()
+            head[s] += speed[s] * dt
+            val after = floor(head[s]).toInt()
+            for (r in before + 1..minOf(after, rows - 1)) countWord(s, r)
+            if (head[s] - trail[s] >= rows) {
+                active[s] = false
+                wait[s] = if (s % LANES == 0) {
+                    PAUSE_MIN_S + random.nextFloat() * (PAUSE_MAX_S - PAUSE_MIN_S)
+                } else {
+                    SECOND_PAUSE_MIN_S + random.nextFloat() * (SECOND_PAUSE_MAX_S - SECOND_PAUSE_MIN_S)
+                }
             }
         }
     }
 
-    private fun launch(c: Int) {
-        active[c] = true
-        head[c] = 0f
-        speed[c] = rows[c] / (CROSS_MIN_S + random.nextFloat() * (CROSS_MAX_S - CROSS_MIN_S))
-        trail[c] = TRAIL_MIN + random.nextInt(TRAIL_MAX - TRAIL_MIN + 1)
-        start[c] = text.wordStarts[random.nextInt(text.wordStarts.size)]
-        generation[c]++
-        countWord(c, 0)
+    /** Starts stream [s] at the top unless another stream in its column is still too close to it. */
+    private fun launch(s: Int): Boolean {
+        val base = s - s % LANES
+        var fastest = Float.MAX_VALUE
+        for (o in base until base + LANES) {
+            if (o == s || !active[o]) continue
+            if (head[o] - trail[o] + 1 < SPACING) return false
+            // Never faster than a stream below, so the gap between them only grows.
+            fastest = minOf(fastest, speed[o])
+        }
+        active[s] = true
+        head[s] = 0f
+        speed[s] = minOf(fastest, rows / (CROSS_MIN_S + random.nextFloat() * (CROSS_MAX_S - CROSS_MIN_S)))
+        trail[s] = maxOf(TRAIL_MIN, (rows * (TRAIL_MIN_SHARE + random.nextFloat() * (TRAIL_MAX_SHARE - TRAIL_MIN_SHARE))).toInt())
+        start[s] = text.wordStarts[random.nextInt(text.wordStarts.size)]
+        generation[s]++
+        countWord(s, 0)
+        return true
     }
 
-    private fun countWord(c: Int, row: Int) {
-        val g = (start[c] + row) % text.glyphs.size
+    private fun countWord(s: Int, row: Int) {
+        val g = (start[s] + row) % text.glyphs.size
         val word = text.wordAt[g]
         if (word >= 0 && text.wordStarts[word] == g) {
             wordsFallen++
@@ -212,16 +230,26 @@ class NotesRain(
     }
 
     companion object {
-        const val CROSS_MIN_S = 1.5f
-        const val CROSS_MAX_S = 4f
+        /** Streams a column can carry at once. */
+        const val LANES = 2
+        /** Empty rows kept between two streams in one column. */
+        const val SPACING = 6
+        const val CROSS_MIN_S = 1f
+        const val CROSS_MAX_S = 2.5f
+        /** A trail spans this share of the screen's height, so long streams fill it as in the film. */
+        const val TRAIL_MIN_SHARE = 0.3f
+        const val TRAIL_MAX_SHARE = 0.65f
         const val TRAIL_MIN = 8
-        const val TRAIL_MAX = 20
-        const val FIRST_DELAY_S = 3f
-        const val PAUSE_MIN_S = 0.2f
-        const val PAUSE_MAX_S = 2.2f
+        const val FIRST_DELAY_S = 2f
+        const val PAUSE_MIN_S = 0.8f
+        const val PAUSE_MAX_S = 4.2f
+        const val SECOND_PAUSE_MIN_S = 3f
+        const val SECOND_PAUSE_MAX_S = 9f
+        const val FLICKER_ONE_IN = 15
         const val FLICKER_S = 0.08f
         const val FLICKER_MIN_PERIOD_S = 0.5f
         const val FLICKER_PERIOD_SPREAD_S = 1.2f
+        private const val RETRY_S = 0.1f
         private const val PREWARM_S = 2.5f
         private const val STEP_S = 1f / 30f
     }
