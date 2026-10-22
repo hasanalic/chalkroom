@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chalkroom App Map</title>
+<style>
+  :root {
+    --bg: #f7f4ec; --card: #fffdf7; --ink: #1f2a2a; --ink2: #4a5555; --line: #d8d2c2;
+    --slate: #2f4a44; --chalk: #f4f1e6; --gold: #b8862b; --code: #efeadc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161b1a; --card: #1f2625; --ink: #ecebe4; --ink2: #b2b8b3; --line: #39433f;
+            --slate: #22362f; --chalk: #e9e6da; --gold: #d9a94a; --code: #2a3230; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.9rem; margin: 0 0 4px; }
+  h2 { font-size: 1.25rem; margin: 40px 0 10px; }
+  h3 { font-size: 1.02rem; margin: 0 0 4px; }
+  p, li { color: var(--ink); }
+  .sub { color: var(--ink2); margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin: 12px 0; }
+  code { font: 0.9em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+  pre { background: var(--code); padding: 10px 12px; border-radius: 8px; overflow-x: auto; margin: 6px 0; }
+  pre code { background: none; padding: 0; }
+  .pieces { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .pieces .card { margin: 0; }
+  ol.route { list-style: none; padding-left: 0; }
+  ol.route > li { margin-bottom: 14px; }
+  .stopnum { display: inline-block; min-width: 1.6em; font-weight: 700; color: var(--gold); }
+  svg { width: 100%; height: auto; display: block; }
+  .diagram { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  details { margin-top: 6px; }
+  summary { cursor: pointer; color: var(--ink2); }
+  summary:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  a { color: inherit; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; vertical-align: top; padding: 8px 6px; border-top: 1px solid var(--line); }
+  th { color: var(--ink2); font-weight: 600; font-size: 0.9rem; }
+  .note { color: var(--ink2); font-size: 0.92rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Chalkroom App Map</h1>
+  <p class="sub">A take-home guide to where things live. Snapshot of commit <code>9887f99</code> (2026-10-22). The code can drift after this, so confirm paths with a search.</p>
+
+  <h2>What it is</h2>
+  <p>You paste study notes. An AI student (Mira, Pip or Juno) picks up believable misconceptions from them. You teach until each belief clears. A judge model decides whether your explanation actually addressed the belief, and what you taught is written on the chalkboard.</p>
+
+  <div class="pieces">
+    <div class="card"><h3>:shared</h3><p>Request/response DTOs, enums and limits that the app and server both compile against (<code>shared/src/main/kotlin/app/chalkroom/shared/Dtos.kt</code>).</p></div>
+    <div class="card"><h3>:server (Ktor)</h3><p>The only holder of the Gemini key and every prompt. <code>POST /decks</code> generates misconceptions; <code>POST /lessons/turn</code> judges one explanation.</p></div>
+    <div class="card"><h3>:app (Compose)</h3><p>One MVI screen per feature: classroom, choose, paste, reading, lesson, closing. Lesson state is kept locally in <code>LessonRepository</code>.</p></div>
+    <div class="card"><h3>Evals</h3><p>JUnit 5 in <code>:server</code>, opt-in with <code>-Pevals</code>. They call Gemini and grade the judge, the say-rules, chalk lines and flaw shaping.</p></div>
+  </div>
+
+  <h2>One action, end to end: “Send an explanation”</h2>
+  <div class="diagram" role="img" aria-labelledby="dgt dgd">
+    <svg viewBox="0 0 820 300" xmlns="http://www.w3.org/2000/svg">
+      <title id="dgt">Send an explanation, from the lesson screen to the chalkboard</title>
+      <desc id="dgd">The lesson screen sends a TurnRequest to POST /lessons/turn. Routes calls TurnJudge, which calls Gemini with a JSON schema. ChalkLine.clean drops overlong lines. The TurnResponse returns to the app, which clears the belief and writes the chalk line. Separately, SayRulesEval checks chalk lines against a stricter 4 to 8 word target.</desc>
+      <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink2)"/></marker></defs>
+      <g font-family="system-ui, sans-serif" font-size="13" fill="var(--ink)">
+        <rect x="10" y="20" width="170" height="64" rx="10" fill="var(--card)" stroke="var(--line)"/>
+        <text x="95" y="46" text-anchor="middle" font-weight="700">Lesson screen</text>
+        <text x="95" y="66" text-anchor="middle" fill="var(--ink2)">LessonViewModel.send()</text>
+
+        <rect x="230" y="20" width="170" height="64" rx="10" fill="var(--card)" stroke="var(--line)"/>
+        <text x="315" y="46" text-anchor="middle" font-weight="700">POST /lessons/turn</text>
+        <text x="315" y="66" text-anchor="middle" fill="var(--ink2)">Routes.kt</text>
+
+        <rect x="450" y="20" width="170" height="64" rx="10" fill="var(--card)" stroke="var(--line)"/>
+        <text x="535" y="46" text-anchor="middle" font-weight="700">TurnJudge.judge()</text>
+        <text x="535" y="66" text-anchor="middle" fill="var(--ink2)">prompt + SCHEMA</text>
+
+        <rect x="660" y="20" width="150" height="64" rx="10" fill="var(--card)" stroke="var(--gold)" stroke-dasharray="5 4"/>
+        <text x="735" y="46" text-anchor="middle" font-weight="700">Gemini</text>
+        <text x="735" y="66" text-anchor="middle" fill="var(--ink2)">structured JSON</text>
+
+        <rect x="450" y="130" width="170" height="64" rx="10" fill="var(--card)" stroke="var(--line)"/>
+        <text x="535" y="156" text-anchor="middle" font-weight="700">ChalkLine.clean()</text>
+        <text x="535" y="176" text-anchor="middle" fill="var(--ink2)">&gt; 10 words → null</text>
+
+        <rect x="10" y="130" width="390" height="64" rx="10" fill="var(--slate)"/>
+        <text x="205" y="156" text-anchor="middle" font-weight="700" fill="var(--chalk)">Belief clears, chalk line written on the board</text>
+        <text x="205" y="176" text-anchor="middle" fill="var(--chalk)">TurnResponse(addressed, reply, chalkLine)</text>
+
+        <rect x="450" y="232" width="360" height="56" rx="10" fill="var(--card)" stroke="var(--line)"/>
+        <text x="630" y="255" text-anchor="middle" font-weight="700">SayRulesEval (eval, not in the app)</text>
+        <text x="630" y="274" text-anchor="middle" fill="var(--ink2)">CHALK_WORDS = 4..8, graded for own words</text>
+      </g>
+      <g stroke="var(--ink2)" stroke-width="1.6" fill="none" marker-end="url(#ar)">
+        <path d="M180 52 H226"/>
+        <path d="M400 52 H446"/>
+        <path d="M620 46 H656"/>
+        <path d="M656 62 H624"/>
+        <path d="M535 84 V126"/>
+        <path d="M450 162 H404"/>
+        <path d="M630 232 V198" stroke-dasharray="4 4"/>
+      </g>
+    </svg>
+  </div>
+
+  <h2>Reference route: the chalk-line limits</h2>
+  <p class="note">This is the route traced in the Code Tour. It follows how a rule became reliable: a prompt alone (“never more than 8 words”) still produced 9–10-word lines in 1–2 of 15. The fix spread the rule across three layers.</p>
+  <ol class="route">
+    <li><span class="stopnum">1</span><strong>Ask for a target in the prompt and require the field in the schema.</strong><br>
+      <code>server/src/main/kotlin/app/chalkroom/server/ai/TurnJudge.kt</code>, search <code>Writing "chalkLine"</code> and <code>SCHEMA</code>.
+      The prompt asks for about 6 words (4–8) from your own words. The schema makes <code>addressed</code>, <code>reply</code> and <code>chalkLine</code> required, in that order.</li>
+    <li><span class="stopnum">2</span><strong>Enforce a looser hard limit on the server.</strong><br>
+      <code>server/src/main/kotlin/app/chalkroom/server/ai/ChalkLine.kt</code>, <code>MAX_WORDS = 10</code> in <code>clean()</code>; called from <code>Routes.kt</code> (search <code>ChalkLine.clean</code>) only when <code>addressed</code>.
+      A slightly long line still reaches the board. Only a line long enough to break the layout is dropped.</li>
+    <li><span class="stopnum">3</span><strong>Measure the strict target in the eval.</strong><br>
+      <code>server/src/test/kotlin/app/chalkroom/server/evals/SayRulesEval.kt</code>, <code>CHALK_WORDS = 4..8</code> and <code>chalkLines()</code>, plus <code>Grader.gradeChalkLine</code>.
+      The eval is where prompt drift shows up before a user sees it. The last recorded run: 14/15.</li>
+  </ol>
+  <details><summary>Where the request starts in the app</summary>
+    <p><code>app/src/main/java/app/chalkroom/feature/lesson/LessonViewModel.kt</code>: <code>send()</code> builds a <code>TurnRequest</code>, calls <code>ChalkroomApi.turn</code> (<code>data/ChalkroomApi.kt</code>), then <code>clear(…, chalkLine)</code> or <code>miss(…)</code>.</p>
+  </details>
+
+  <h2>To change this, start here</h2>
+  <table>
+    <thead><tr><th scope="col">Change</th><th scope="col">Start at</th></tr></thead>
+    <tbody>
+      <tr><td>A student’s personality or flaw</td><td><code>server/…/ai/StudentPrompts.kt</code> → <code>persona()</code>; card text in <code>app/…/students/StudentCatalog.kt</code></td></tr>
+      <tr><td>How misconceptions are picked from notes</td><td><code>server/…/ai/MisconceptionGenerator.kt</code> → <code>selectMisconceptions()</code></td></tr>
+      <tr><td>What counts as “addressed”</td><td><code>server/…/ai/TurnJudge.kt</code> → <code>userPrompt()</code>, then rerun <code>JudgeConsistencyEval</code></td></tr>
+      <tr><td>Chalk line length on the board</td><td><code>ChalkLine.MAX_WORDS</code> (hard limit) and <code>SayRulesEval.CHALK_WORDS</code> (target)</td></tr>
+      <tr><td>Count dropped chalk lines (an idea, not built)</td><td><code>ChalkLine.clean()</code> returns <code>null</code> silently today; a counter or log there would show the drop rate after a model change</td></tr>
+      <tr><td>Model ids and call settings</td><td><code>server/…/Config.kt</code>; each is overridable by <code>&lt;ROLE&gt;_MODEL</code> env vars</td></tr>
+      <tr><td>Classroom scenes between students</td><td><code>app/…/feature/classroom/Scenes.kt</code></td></tr>
+      <tr><td>Colours and type</td><td><code>app/…/ui/theme/Theme.kt</code></td></tr>
+    </tbody>
+  </table>
+  <p class="note"><code>server/…</code> = <code>server/src/main/kotlin/app/chalkroom/server</code>; <code>app/…</code> = <code>app/src/main/java/app/chalkroom</code>.</p>
+
+  <h2>A practice to reuse</h2>
+  <div class="card">
+    <p><strong>Split one AI rule into a target, a hard limit and a measurement.</strong> In Chalkroom, the prompt asks for about 6 words. The server accepts up to 10, because a dropped line leaves the board empty, which is worse than a long one. The eval checks 4–8, because a strict eval catches prompt drift early.</p>
+    <p>On another project with model output inside a product, write the rule down three times: what the prompt asks for, what the code accepts without breaking the UI, and what the eval scores. Keep the eval strictest, keep the runtime forgiving, and log whatever the runtime throws away so that you can see the rate.</p>
+  </div>
+
+  <h2>Run it again</h2>
+  <pre><code>cp .env.example .env            # put your GEMINI_API_KEY in .env
+./gradlew :server:run            # ready at http://0.0.0.0:8080
+./gradlew :app:installDebug      # on the emulator; app talks to http://10.0.2.2:8080
+./gradlew test                   # offline unit tests
+./gradlew :server:test -Pevals   # evals: calls Gemini, uses quota</code></pre>
+  <p class="note">Full steps and troubleshooting are in <code>README.md</code>.</p>
+</main>
+</body>
+</html>

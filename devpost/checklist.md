@@ -151,15 +151,15 @@ Build mode: fast
 
 ## Code Tour and App Map
 
-- [ ] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap
-- [ ] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
-- [ ] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
+- [x] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap
+- [x] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
+- [x] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
 
-Activity and evidence: 
-Route and stops: 
-Edit outcome: 
-Reflection: 
-Activity mode: 
+Activity and evidence: Focused alternative, tied to the goal of reliable AI inside a product. Traced the chalk-line length issue: the prompt rule "never more than 8" still gave 9–10 words in 1–2 of 15 lines, so the rule was split into a prompt target (about 6, 4–8), a server hard limit (10) and an eval target (4–8, last run 14/15). The learner explained why the gap is deliberate.
+Route and stops: `TurnJudge.kt` (`Writing "chalkLine"`, `SCHEMA`) → `ChalkLine.kt` (`MAX_WORDS`, `clean()`, called from `Routes.kt`) → `SayRulesEval.kt` (`CHALK_WORDS`, `chalkLines()`).
+Edit outcome: Not applicable. No edit was made. The learner named one possible improvement, counting chalk lines dropped by `ChalkLine.clean()`. It is not built and is listed in the app map as an idea.
+Reflection: Offered and answered (kept in the learner profile).
+Activity mode: Focused alternative (plan-first learner). `devpost/app-map.html` was made from commit `9887f99` and checked in the browser pane.
 
 ## Revisions
 
