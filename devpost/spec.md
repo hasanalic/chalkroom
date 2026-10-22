@@ -101,6 +101,10 @@ Models (learner choice, revised during the build; defaults in `Config.kt`, every
   3. In Google AI Studio / Cloud: keep quota and rate limits tight for the key's project, and set a budget alert.
 - **For the demo video:** record the emulator against the deployed Railway server. Use short biology notes that yield about 3 misconceptions, then show Mira and a second student on the same notes.
 - **Submission:** a short demo video plus a public GitHub repo. A debug APK built against the deployed server is attached to a GitHub Release, so judges can try it without their own key; the README also covers running everything locally.
+- **Sharing links:**
+  - Public GitHub repository: https://github.com/hasanalic/chalkroom (public since 2026-10-22, checked signed out)
+  - Demo video: not yet recorded
+  - Live server / APK release: not set up (optional)
 
 ## Look and Feel
 Carries forward `prd.md > Look and Feel`. Settled. These are build-ready values.
