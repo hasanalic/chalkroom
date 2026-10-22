@@ -122,6 +122,7 @@ import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.CompositionLocalProvider
 import app.chalkroom.feature.classroom.room.RoomPalette
 import app.chalkroom.feature.classroom.room.RoomSheet
+import app.chalkroom.feature.classroom.room.Floor
 import app.chalkroom.feature.classroom.room.WallColor
 import app.chalkroom.ui.theme.LocalChalkroomColors
 import app.chalkroom.ui.components.LightStatusBarIcons
@@ -582,7 +583,12 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, glanceTick: Int
         val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
         CompositionLocalProvider(LocalChalkroomColors provides roomColors) {
-            Room(Modifier.fillMaxSize(), shelves = room.wall == WallColor.SHELVES)
+            Room(
+                Modifier.fillMaxSize(),
+                shelves = room.wall == WallColor.SHELVES,
+                porthole = room.wall == WallColor.SPACE,
+                plates = room.floor == Floor.METAL,
+            )
         }
         FloorBalls(floorBalls, Modifier.fillMaxSize())
 
@@ -1130,7 +1136,8 @@ private fun Board(
         wipe.animateTo(1f, tween(WIPE_MS, easing = EaseInOutSine))
         wipeFrom = null
     }
-    val mottoPad = if (motto.isNotEmpty()) MOTTO_STRIP else 0.dp
+    // The motto's band sits clear above the chalk and eraser on the tray; everything else keeps above it.
+    val mottoPad = if (motto.isNotEmpty()) MOTTO_LIFT + MOTTO_H else 0.dp
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val give by animateFloatAsState(if (pressed && board != null) 0.97f else 1f, settle(), label = "give")
@@ -1259,8 +1266,8 @@ private fun Board(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(start = 18.dp, end = 18.dp, bottom = trayH + 7.dp)
-                    .height(MOTTO_STRIP - 4.dp)
+                    .padding(start = 18.dp, end = 18.dp, bottom = trayH + MOTTO_LIFT)
+                    .height(MOTTO_H)
                     .graphicsLayer { rotationZ = -1f }
                     .semantics { contentDescription = "Board motto: $motto" },
             )
@@ -1300,14 +1307,23 @@ private fun Board(
 }
 
 private const val WIPE_MS = 400
-private val MOTTO_STRIP = 22.dp
+/** The motto's band: its height, and how far its bottom sits above the tray (props poke ~13dp up). */
+private val MOTTO_H = 20.dp
+private val MOTTO_LIFT = 24.dp
 
-/** Space Lab's slate: a faint, fixed speckle of stars. */
+/** Space Lab's slate: a fixed speckle of stars, clearly there but quieter than the chalk, with a few four-point twinkles. */
 private fun DrawScope.drawStarSpeckle(tl: Offset, slate: Size, chalk: Color) {
     val rnd = Random(11)
-    repeat(46) {
+    repeat(54) {
         val at = Offset(tl.x + rnd.nextFloat() * slate.width, tl.y + rnd.nextFloat() * slate.height)
-        drawCircle(chalk.copy(alpha = 0.10f + rnd.nextFloat() * 0.14f), (0.5f + rnd.nextFloat() * 0.9f) * density, at)
+        drawCircle(chalk.copy(alpha = 0.22f + rnd.nextFloat() * 0.2f), (0.7f + rnd.nextFloat() * 1.0f) * density, at)
+    }
+    repeat(7) {
+        val at = Offset(tl.x + (0.04f + rnd.nextFloat() * 0.92f) * slate.width, tl.y + (0.06f + rnd.nextFloat() * 0.88f) * slate.height)
+        val r = (2.5f + rnd.nextFloat() * 2f) * density
+        val c = chalk.copy(alpha = 0.38f)
+        drawLine(c, at.copy(x = at.x - r), at.copy(x = at.x + r), 1f * density, StrokeCap.Round)
+        drawLine(c, at.copy(y = at.y - r), at.copy(y = at.y + r), 1f * density, StrokeCap.Round)
     }
 }
 

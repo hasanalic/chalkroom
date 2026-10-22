@@ -95,8 +95,9 @@ fun RoomSheetContent(room: RoomConfig, custom: Boolean, onEvent: (UiEvent) -> Un
 
         Section("Wall")
         SwatchRow {
-            WallColor.entries.forEach { wall ->
-                Swatch(RoomPalette.wall(wall).first, "Wall: ${wall.label}", wall == room.wall, shelves = wall == WallColor.SHELVES) {
+            val shown = CustomizeRoom.shownWall(room)
+            WallColor.entries.filter { it.swatch }.forEach { wall ->
+                Swatch(RoomPalette.wall(wall).first, "Wall: ${wall.label}", wall == shown, shelves = wall == WallColor.SHELVES) {
                     onEvent(UiEvent.WallPicked(wall))
                 }
             }
@@ -246,7 +247,7 @@ private fun PresetCard(preset: RoomPreset, picked: Boolean, custom: Boolean, onC
     }
 }
 
-/** The room in miniature: wall, board, floor, three desks, and the light over it. */
+/** The room in miniature: wall (with Space Lab's porthole), board, floor, three desks, and the light over it. */
 @Composable
 fun RoomThumbnail(room: RoomConfig, modifier: Modifier = Modifier) {
     val ink = Chalkroom.colors.ink
@@ -270,9 +271,26 @@ fun RoomThumbnail(room: RoomConfig, modifier: Modifier = Modifier) {
                 drawRect(roomColors.woodDeep, Offset(0f, h * y), Size(w, h * 0.02f))
             }
         }
+        if (room.wall == WallColor.SPACE) {
+            // The porthole, top right: metal rim, deep space, two stars and the little planet.
+            val c = Offset(w * 0.9f, h * 0.2f)
+            val r = h * 0.12f
+            drawCircle(RoomPalette.portholeRim, r, c)
+            drawCircle(RoomPalette.space, r * 0.72f, c)
+            drawCircle(RoomPalette.planet, r * 0.26f, c + Offset(-r * 0.22f, r * 0.2f))
+            listOf(0.3f to -0.35f, -0.3f to -0.3f, 0.4f to 0.25f).forEach { (x, y) ->
+                drawCircle(Color.White.copy(alpha = 0.85f), 0.7f * density, c + Offset(r * x, r * y))
+            }
+            drawCircle(ink, r, c, style = Stroke(1f * density))
+        }
         drawRect(roomColors.skirting, Offset(0f, wallBottom - h * 0.04f), Size(w, h * 0.04f))
         drawRect(roomColors.floor2, Offset(0f, wallBottom), Size(w, h - wallBottom))
         drawRect(roomColors.floor1, Offset(0f, wallBottom + (h - wallBottom) * 0.5f), Size(w, (h - wallBottom) * 0.5f))
+        if (room.floor == Floor.METAL) {
+            // Plates, not planks: a grid of dark seams.
+            listOf(0.25f, 0.5f, 0.75f).forEach { x -> drawLine(roomColors.woodDeep, Offset(w * x, wallBottom), Offset(w * x, h), 1f * density) }
+            drawLine(roomColors.woodDeep, Offset(0f, wallBottom + (h - wallBottom) * 0.5f), Offset(w, wallBottom + (h - wallBottom) * 0.5f), 1f * density)
+        }
         // Board with its frame.
         val boardTl = Offset(w * 0.2f, h * 0.08f)
         val board = Size(w * 0.6f, h * 0.34f)
@@ -281,7 +299,7 @@ fun RoomThumbnail(room: RoomConfig, modifier: Modifier = Modifier) {
         drawLine(Color.White.copy(alpha = 0.7f), boardTl + Offset(board.width * 0.2f, board.height * 0.45f), boardTl + Offset(board.width * 0.7f, board.height * 0.45f), 1.5f * density)
         if (room.board.stars) {
             listOf(0.15f to 0.2f, 0.8f to 0.3f, 0.5f to 0.75f, 0.3f to 0.65f, 0.9f to 0.8f).forEach { (x, y) ->
-                drawCircle(Color.White.copy(alpha = 0.5f), 0.8f * density, boardTl + Offset(board.width * x, board.height * y))
+                drawCircle(Color.White.copy(alpha = 0.6f), 0.9f * density, boardTl + Offset(board.width * x, board.height * y))
             }
         }
         // Desks: two at the back, one in front.

@@ -15,14 +15,18 @@ enum class BoardColor(val label: String, val swatch: Boolean, val stars: Boolean
     DEEP_NAVY("Deep navy", false, stars = true),
 }
 
-/** All six are swatches. [SHELVES] is a wall of wooden shelves, not just a colour. */
-enum class WallColor(val label: String) {
+/**
+ * The first six are the sheet's swatches. [SHELVES] is a wall of wooden shelves, not just a colour;
+ * [SPACE] (Space Lab's only) is a deep space-navy wall with a porthole onto the stars.
+ */
+enum class WallColor(val label: String, val swatch: Boolean = true) {
     CREAM("Cream"),
     NAVY("Navy"),
     SHELVES("Shelves"),
     SUNSET_GLOW("Sunset"),
     STEEL("Steel"),
     SAGE("Sage"),
+    SPACE("Space", swatch = false),
 }
 
 enum class DeskStyle(val label: String) {
@@ -31,7 +35,7 @@ enum class DeskStyle(val label: String) {
     METAL("Metal"),
 }
 
-/** Only presets pick the floor. */
+/** Only presets pick the floor. [METAL] is dark metal plates, not planks. */
 enum class Floor { WOOD, DARK, METAL }
 
 /** The first three are the sheet's choices; the rest belong to presets. Only [EVENING] turns the desk lamps on. */
@@ -41,7 +45,7 @@ enum class LightColor(val label: String, val swatch: Boolean) {
     EVENING("Evening", true),
     GOLDEN("Golden", false),
     SUNSET("Sunset", false),
-    COOL_BLUE("Cool blue", false),
+    COOL_BLUE("Cool cyan", false),
     ;
 
     val lampsOn: Boolean get() = this == EVENING
@@ -57,6 +61,7 @@ enum class RoomPreset(
     /** The swatch the sheet shows as picked while the preset's own (non-swatch) shade is up. */
     val nearestBoard: BoardColor = values.board,
     val nearestLight: LightColor = values.light,
+    val nearestWall: WallColor = values.wall,
 ) {
     CLASSIC("Classic", RoomValues(BoardColor.GREEN, WallColor.CREAM, DeskStyle.WOOD, LightColor.AFTERNOON), Floor.WOOD),
     NIGHT_STUDY("Night Study", RoomValues(BoardColor.BLACK, WallColor.NAVY, DeskStyle.PAINTED, LightColor.EVENING), Floor.DARK),
@@ -76,10 +81,11 @@ enum class RoomPreset(
     ),
     SPACE_LAB(
         "Space Lab",
-        RoomValues(BoardColor.DEEP_NAVY, WallColor.STEEL, DeskStyle.METAL, LightColor.COOL_BLUE),
+        RoomValues(BoardColor.DEEP_NAVY, WallColor.SPACE, DeskStyle.METAL, LightColor.COOL_BLUE),
         Floor.METAL,
         nearestBoard = BoardColor.SLATE_BLUE,
         nearestLight = LightColor.MORNING,
+        nearestWall = WallColor.NAVY,
     ),
 }
 

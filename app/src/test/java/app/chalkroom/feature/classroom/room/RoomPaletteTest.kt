@@ -27,6 +27,11 @@ class RoomPaletteTest {
     }
 
     @Test
+    fun `Space Lab's wall is dark enough for light status bar icons`() {
+        assertTrue(RoomPalette.darkWall(RoomPreset.SPACE_LAB.values.wall))
+    }
+
+    @Test
     fun `chalk stays readable on every board in every light`() {
         // The handwriting (93%), the dimmer second line on a paused board (80%), under each light's wash.
         BoardColor.entries.forEach { board ->

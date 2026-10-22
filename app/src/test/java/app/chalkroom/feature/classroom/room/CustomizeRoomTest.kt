@@ -28,7 +28,7 @@ class CustomizeRoomTest {
             RoomPreset.NIGHT_STUDY to RoomValues(BoardColor.BLACK, WallColor.NAVY, DeskStyle.PAINTED, LightColor.EVENING),
             RoomPreset.LIBRARY to RoomValues(BoardColor.DARK_GREEN, WallColor.SHELVES, DeskStyle.WOOD, LightColor.GOLDEN),
             RoomPreset.SUNSET to RoomValues(BoardColor.BLUE_GREY, WallColor.SUNSET_GLOW, DeskStyle.PAINTED, LightColor.SUNSET),
-            RoomPreset.SPACE_LAB to RoomValues(BoardColor.DEEP_NAVY, WallColor.STEEL, DeskStyle.METAL, LightColor.COOL_BLUE),
+            RoomPreset.SPACE_LAB to RoomValues(BoardColor.DEEP_NAVY, WallColor.SPACE, DeskStyle.METAL, LightColor.COOL_BLUE),
         )
         val floors = mapOf(
             RoomPreset.CLASSIC to Floor.WOOD,
@@ -66,9 +66,10 @@ class CustomizeRoomTest {
         val space = RoomConfig(RoomPreset.SPACE_LAB)
         assertEquals(BoardColor.SLATE_BLUE, CustomizeRoom.shownBoard(space))
         assertEquals(LightColor.MORNING, CustomizeRoom.shownLight(space))
+        assertEquals(WallColor.NAVY, CustomizeRoom.shownWall(space))
         assertTrue(BoardColor.entries.filter { it.swatch }.size == 4)
         assertTrue(LightColor.entries.filter { it.swatch }.size == 3)
-        assertTrue(WallColor.entries.size == 6)
+        assertTrue(WallColor.entries.filter { it.swatch }.size == 6)
     }
 
     @Test

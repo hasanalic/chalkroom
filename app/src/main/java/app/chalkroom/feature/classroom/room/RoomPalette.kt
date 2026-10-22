@@ -29,13 +29,14 @@ object RoomPalette {
         WallColor.SUNSET_GLOW -> Triple(Color(0xFFFFD2A0), Color(0xFFFFBE88), Color(0xFFE59C66))
         WallColor.STEEL -> Triple(Color(0xFFB9C2CC), Color(0xFFAAB4BF), Color(0xFF808A96))
         WallColor.SAGE -> Triple(Color(0xFFDCE6D2), Color(0xFFCEDBC2), Color(0xFFA7BA97))
+        WallColor.SPACE -> Triple(Color(0xFF151B36), Color(0xFF11162E), Color(0xFF3A4458))
     }
 
     /** floor1, floor2, floor3 and the seam tone. */
     private fun floor(f: Floor): List<Color> = when (f) {
         Floor.WOOD -> listOf(base.floor1, base.floor2, base.floor3, base.woodDeep)
         Floor.DARK -> listOf(Color(0xFF7C5839), Color(0xFF704E31), Color(0xFF876241), Color(0xFF3B2716))
-        Floor.METAL -> listOf(Color(0xFFAFB7C0), Color(0xFFA4ADB7), Color(0xFFBAC2CA), Color(0xFF59616B))
+        Floor.METAL -> listOf(Color(0xFF3B4352), Color(0xFF353D4B), Color(0xFF414A5A), Color(0xFF1A1F29))
     }
 
     /** Desk top, front lip, panel and legs. */
@@ -52,11 +53,16 @@ object RoomPalette {
         LightColor.EVENING -> Color(0xFF1B2350).copy(alpha = 0.22f)
         LightColor.GOLDEN -> Color(0xFFFFC36A).copy(alpha = 0.13f)
         LightColor.SUNSET -> Color(0xFFFF8A4E).copy(alpha = 0.14f)
-        LightColor.COOL_BLUE -> Color(0xFF5C8DFF).copy(alpha = 0.12f)
+        LightColor.COOL_BLUE -> Color(0xFF38D9F0).copy(alpha = 0.13f)
     }
 
     /** A wall dark enough that the status bar icons go light over it. */
     fun darkWall(w: WallColor): Boolean = wall(w).first.luminance() < 0.3f
+
+    /** Space Lab's porthole: the metal rim, deep space through the glass, and the little planet. */
+    val portholeRim = Color(0xFF8C97A8)
+    val space = Color(0xFF070B1E)
+    val planet = Color(0xFFF08A5D)
 
     /** The warm pool of light under a desk lamp. */
     val lampGlow = Color(0xFFFFD58A)

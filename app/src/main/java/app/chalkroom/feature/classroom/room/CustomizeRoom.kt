@@ -69,6 +69,10 @@ class CustomizeRoom(
         fun shownBoard(config: RoomConfig): BoardColor =
             if (config.board.swatch) config.board else config.preset.nearestBoard
 
+        /** The wall swatch the sheet shows as picked. */
+        fun shownWall(config: RoomConfig): WallColor =
+            if (config.wall.swatch) config.wall else config.preset.nearestWall
+
         /** The light the sheet shows as picked. */
         fun shownLight(config: RoomConfig): LightColor =
             if (config.light.swatch) config.light else config.preset.nearestLight

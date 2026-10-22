@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -14,12 +15,14 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
+import app.chalkroom.feature.classroom.room.RoomPalette
 import app.chalkroom.students.StudentCatalog
 import app.chalkroom.ui.theme.Chalkroom
 import app.chalkroom.ui.theme.ChalkroomColors
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.random.Random
 
 /** Where the wall meets the floor, as a share of the screen height. */
 const val WALL_SHARE = 0.38f
@@ -36,10 +39,11 @@ private const val FADE_TO = 0.93f
 /**
  * The room behind everything: wall (warmer near the floor), skirting, the shelf, clock and notes cut
  * by the screen edges, the bin in the corner, and wooden floorboards running towards the back. With
- * [shelves] the wall is lined with wooden bookshelves (the Library).
+ * [shelves] the wall is lined with wooden bookshelves (the Library). With [porthole] a round window
+ * onto the stars hangs where the clock was, and with [plates] the floor is metal plates (Space Lab).
  */
 @Composable
-fun Room(modifier: Modifier = Modifier, shelves: Boolean = false) {
+fun Room(modifier: Modifier = Modifier, shelves: Boolean = false, porthole: Boolean = false, plates: Boolean = false) {
     val colors = Chalkroom.colors
     Canvas(modifier) {
         val w = size.width
@@ -52,7 +56,7 @@ fun Room(modifier: Modifier = Modifier, shelves: Boolean = false) {
         drawRect(colors.wallLow, Offset(0f, wallBottom * 0.86f), Size(w, wallBottom * 0.14f))
         if (shelves) drawBookshelves(colors, wallBottom)
 
-        drawFloor(colors, wallBottom)
+        if (plates) drawPlates(colors, wallBottom) else drawFloor(colors, wallBottom)
 
         // Skirting where wall meets floor.
         val skirtH = 9f * dp
@@ -61,7 +65,7 @@ fun Room(modifier: Modifier = Modifier, shelves: Boolean = false) {
         drawLine(colors.ink.copy(alpha = 0.2f), Offset(0f, wallBottom), Offset(w, wallBottom), 1.5f * dp)
 
         drawShelf(colors, Offset(0f, h * 0.27f), w)
-        drawClock(colors, Offset(w * 0.95f, h * 0.115f), w * 0.085f)
+        if (porthole) drawPorthole(colors, Offset(w * 0.915f, h * 0.112f), w * 0.072f) else drawClock(colors, Offset(w * 0.95f, h * 0.115f), w * 0.085f)
         drawNote(colors, colors.lavender, Offset(w * 0.875f, h * 0.215f), w * 0.09f, -6f)
         drawNote(colors, Color(0xFFFFE9A8), Offset(w * 0.955f, h * 0.255f), w * 0.09f, 8f)
         drawBin(colors, Offset(w * BIN_X, h * BIN_BOTTOM), w * BIN_W)
@@ -138,6 +142,88 @@ private fun DrawScope.drawFloor(c: ChalkroomColors, top: Float) {
         }
         drawLine(seam, Offset(xAt(b0, top), top), Offset(b0, h), 1.5f * density)
     }
+}
+
+/** Metal plates in the same perspective as the boards: a grid of plates with a rivet in each corner. */
+private fun DrawScope.drawPlates(c: ChalkroomColors, top: Float) {
+    val w = size.width
+    val h = size.height
+    val dp = density
+    val tones = listOf(c.floor1, c.floor2, c.floor3)
+    val vp = Offset(w / 2, top - h * 1.6f)
+    val cols = 6
+    val left = -0.35f * w
+    val right = 1.35f * w
+    fun xAt(bottomX: Float, y: Float): Float = vp.x + (bottomX - vp.x) * (y - vp.y) / (h - vp.y)
+    // Rows get taller towards the front.
+    val rows = listOf(0f, 0.13f, 0.3f, 0.52f, 0.78f, 1f).map { top + (h - top) * it }
+    val seam = c.woodDeep.copy(alpha = 0.55f)
+    val shine = c.card.copy(alpha = 0.07f)
+    for (i in 0 until cols) {
+        val b0 = left + (right - left) * i / cols
+        val b1 = left + (right - left) * (i + 1) / cols
+        for (r in 0 until rows.size - 1) {
+            val y0 = rows[r]
+            val y1 = rows[r + 1]
+            val quad = Path().apply {
+                moveTo(xAt(b0, y0), y0)
+                lineTo(xAt(b1, y0), y0)
+                lineTo(xAt(b1, y1), y1)
+                lineTo(xAt(b0, y1), y1)
+                close()
+            }
+            drawPath(quad, tones[(i + r) % 3])
+            // A faint bevel along each plate's top edge.
+            drawLine(shine, Offset(xAt(b0, y0) + 2f * dp, y0 + 1.5f * dp), Offset(xAt(b1, y0) - 2f * dp, y0 + 1.5f * dp), 1.5f * dp)
+            val inset = (y1 - y0) * 0.12f
+            val rivet = (1.2f + 1.4f * (y0 - top) / (h - top)) * dp
+            listOf(y0 + inset, y1 - inset).forEach { y ->
+                val l = xAt(b0, y)
+                val rr = xAt(b1, y)
+                val dx = (rr - l) * 0.07f
+                drawCircle(seam, rivet, Offset(l + dx, y))
+                drawCircle(seam, rivet, Offset(rr - dx, y))
+            }
+        }
+    }
+    for (r in 1 until rows.size - 1) drawLine(seam, Offset(0f, rows[r]), Offset(w, rows[r]), 2f * dp)
+    for (i in 0..cols) {
+        val b = left + (right - left) * i / cols
+        drawLine(seam, Offset(xAt(b, top), top), Offset(b, h), 2f * dp)
+    }
+}
+
+/** A round window in a bolted metal rim: deep space, a scatter of stars and a small ringed planet. */
+private fun DrawScope.drawPorthole(c: ChalkroomColors, center: Offset, r: Float) {
+    val dp = density
+    drawCircle(RoomPalette.portholeRim, r, center)
+    drawCircle(c.ink, r, center, style = Stroke(3f * dp))
+    repeat(8) { i ->
+        val a = (i * 45f + 22.5f) * PI.toFloat() / 180f
+        val at = Offset(center.x + cos(a) * r * 0.87f, center.y + sin(a) * r * 0.87f)
+        drawCircle(c.ink.copy(alpha = 0.55f), 1.6f * dp, at)
+    }
+    val glass = r * 0.74f
+    val window = Path().apply { addOval(Rect(center, glass)) }
+    clipPath(window) {
+        drawCircle(RoomPalette.space, glass, center)
+        val rnd = Random(5)
+        repeat(16) {
+            val at = Offset(center.x + (rnd.nextFloat() * 2f - 1f) * glass, center.y + (rnd.nextFloat() * 2f - 1f) * glass)
+            drawCircle(Color.White.copy(alpha = 0.55f + rnd.nextFloat() * 0.4f), (0.6f + rnd.nextFloat() * 0.9f) * dp, at)
+        }
+        // The planet, low on the left, with a tilted ring.
+        val p = Offset(center.x - glass * 0.3f, center.y + glass * 0.3f)
+        val pr = glass * 0.34f
+        drawCircle(RoomPalette.planet, pr, p)
+        drawCircle(c.ink.copy(alpha = 0.5f), pr, p, style = Stroke(1.5f * dp))
+        rotate(-18f, p) {
+            drawOval(c.card.copy(alpha = 0.8f), Offset(p.x - pr * 1.7f, p.y - pr * 0.32f), Size(pr * 3.4f, pr * 0.64f), style = Stroke(1.5f * dp))
+        }
+        // A glint across the glass.
+        drawArc(Color.White.copy(alpha = 0.22f), 200f, 60f, false, Offset(center.x - glass * 0.78f, center.y - glass * 0.78f), Size(glass * 1.56f, glass * 1.56f), style = Stroke(2.5f * dp, cap = StrokeCap.Round))
+    }
+    drawCircle(c.ink, glass, center, style = Stroke(2.5f * dp))
 }
 
 private fun DrawScope.drawShelf(c: ChalkroomColors, at: Offset, w: Float) {
