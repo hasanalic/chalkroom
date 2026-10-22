@@ -14,7 +14,8 @@ object ReadingContract {
 
     data class UiState(
         val studentId: StudentId,
-        val notesPreview: String = "",
+        /** The full notes: the rain behind the student is made of their words. */
+        val notes: String = "",
         val phase: Phase = Phase.READING,
         val motes: List<Mote> = emptyList(),
         val expression: Expression = Expression.IDLE,

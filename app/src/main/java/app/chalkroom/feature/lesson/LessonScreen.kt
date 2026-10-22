@@ -3,7 +3,6 @@ package app.chalkroom.feature.lesson
 import android.os.Build
 import android.view.HapticFeedbackConstants
 import android.view.View
-import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
@@ -54,7 +53,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -92,7 +90,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.chalkroom.data.ItemPhase
 import app.chalkroom.data.Lesson
@@ -112,6 +109,7 @@ import app.chalkroom.students.StudentProfile
 import app.chalkroom.ui.components.ChalkLines
 import app.chalkroom.ui.components.Ledge
 import app.chalkroom.ui.components.LightCard
+import app.chalkroom.ui.components.LightStatusBarIcons
 import app.chalkroom.ui.components.PrimaryButton
 import app.chalkroom.ui.components.QuietButton
 import app.chalkroom.ui.components.drawErasedArcs
@@ -143,19 +141,6 @@ fun LessonScreen(
     val speech = rememberSpeechInput(viewModel::onEvent)
     VoiceInputEffects(state.voice, speech, viewModel::onEvent)
     LessonContent(state, viewModel::onEvent)
-}
-
-/** The board runs under the status bar, so its icons go light while this screen shows; put back after. */
-@Composable
-private fun LightStatusBarIcons() {
-    val window = LocalActivity.current?.window ?: return
-    val view = LocalView.current
-    DisposableEffect(window, view) {
-        val controller = WindowCompat.getInsetsController(window, view)
-        val previous = controller.isAppearanceLightStatusBars
-        controller.isAppearanceLightStatusBars = false
-        onDispose { controller.isAppearanceLightStatusBars = previous }
-    }
 }
 
 /** CONFIRM on API 30+, CLOCK_TICK below (spec.md > App: Clearing Choreography). */

@@ -34,7 +34,7 @@ class ReadingViewModel(
     private val repository: LessonRepository,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(UiState(studentId, notesPreview = repository.notes.take(PREVIEW_CHARS)))
+    private val _state = MutableStateFlow(UiState(studentId, notes = repository.notes))
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private val _effects = Channel<UiEffect>(Channel.BUFFERED)
@@ -99,7 +99,6 @@ class ReadingViewModel(
     }
 
     companion object {
-        const val PREVIEW_CHARS = 420
         const val MIN_READ_MS = 1_800L
         const val GLANCE_EVERY_MS = 2_400L
         const val GLANCE_MS = 700L
