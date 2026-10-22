@@ -117,6 +117,14 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
 import app.chalkroom.ui.theme.ChalkroomColors
 import org.koin.compose.viewmodel.koinViewModel
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.runtime.CompositionLocalProvider
+import app.chalkroom.feature.classroom.room.RoomPalette
+import app.chalkroom.feature.classroom.room.RoomSheet
+import app.chalkroom.feature.classroom.room.WallColor
+import app.chalkroom.ui.theme.LocalChalkroomColors
+import app.chalkroom.ui.components.LightStatusBarIcons
 
 @Composable
 fun ClassroomScreen(
@@ -125,15 +133,17 @@ fun ClassroomScreen(
     viewModel: ClassroomViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var glanceTick by remember { mutableIntStateOf(0) }
     LaunchedEffect(viewModel) {
         viewModel.effects.collect {
             when (it) {
                 UiEffect.OpenPasteNotes -> onTeachSomething()
                 is UiEffect.OpenLesson -> onResumeLesson(it.studentId)
+                UiEffect.StudentsGlance -> glanceTick++
             }
         }
     }
-    ClassroomContent(state, viewModel::onEvent)
+    ClassroomContent(state, viewModel::onEvent, glanceTick)
 }
 
 /**
@@ -210,10 +220,19 @@ private const val NOTICE_GAP_MS = 120L
 private const val NOTICE_AGAIN_MS = 20_000L
 private val noticeOrder = listOf(StudentId.MIRA, StudentId.JUNO, StudentId.PIP)
 
+/**
+ * [glanceTick]: each bump is the room changing in a way the students notice (board colour, light or
+ * preset): they glance at the board with a brief wordless face, unless a scene or the arrival runs.
+ */
 @Composable
-fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
+fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit, glanceTick: Int = 0) {
     val reduced = Chalkroom.reducedMotion
     val colors = Chalkroom.colors
+    val room = state.room
+    val roomColors = remember(room) { RoomPalette.roomColors(room) }
+    val deskColors = remember(room) { RoomPalette.deskColors(room) }
+    val slate = RoomPalette.board(room.board)
+    if (RoomPalette.darkWall(room.wall)) LightStatusBarIcons()
     val haptics = LocalHapticFeedback.current
 
     // Lights off (the first open ever, or as the switch was left): the room sits in the dark,
@@ -534,6 +553,24 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
         }
     }
 
+    // The room changed under them: each glances at the board, a little apart, with a brief face, then
+    // back to idling. Never over a scene, the arrival or the dark; a quick run of changes glances once.
+    var glancePoses by remember { mutableStateOf(emptyMap<StudentId, ScenePose>()) }
+    LaunchedEffect(glanceTick) {
+        if (glanceTick == 0 || !settled || !lightsOn || sceneJob != null || life.quiet || player.bubble != null) return@LaunchedEffect
+        life.quiet = true
+        try {
+            noticeOrder.forEach { id ->
+                glancePoses = glancePoses + (id to ScenePose(glanceFace.getValue(id), boardLook.getValue(id)))
+                delay(NOTICE_GAP_MS)
+            }
+            delay(GLANCE_HOLD_MS)
+        } finally {
+            glancePoses = emptyMap()
+            life.quiet = false
+        }
+    }
+
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
@@ -544,26 +581,41 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
         val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-        Room(Modifier.fillMaxSize())
+        CompositionLocalProvider(LocalChalkroomColors provides roomColors) {
+            Room(Modifier.fillMaxSize(), shelves = room.wall == WallColor.SHELVES)
+        }
         FloorBalls(floorBalls, Modifier.fillMaxSize())
 
-        Board(
-            board = state.board,
-            learned = state.learned,
-            reduced = reduced,
-            onTap = {
-                calling = false
-                onEvent(UiEvent.BoardTapped)
-            },
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = top + 20.dp)
-                .width(w * 0.64f)
-                .height(h * 0.275f)
-                .graphicsLayer {
-                    alpha = boardIn.value
-                    translationY = -14.dp.toPx() * (1f - boardIn.value)
+        CompositionLocalProvider(LocalChalkroomColors provides RoomPalette.boardColors(slate)) {
+            Board(
+                board = state.board,
+                learned = state.learned,
+                slate = slate,
+                stars = room.board.stars,
+                motto = room.motto.trim(),
+                reduced = reduced,
+                onTap = {
+                    calling = false
+                    onEvent(UiEvent.BoardTapped)
                 },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = top + 20.dp)
+                    .width(w * 0.64f)
+                    .height(h * 0.275f)
+                    .graphicsLayer {
+                        alpha = boardIn.value
+                        translationY = -14.dp.toPx() * (1f - boardIn.value)
+                    },
+            )
+        }
+
+        CustomizeButton(
+            onTap = { onEvent(UiEvent.CustomizeTapped) },
+            modifier = Modifier
+                .offset(x = w * 0.18f - CUSTOMIZE_SIZE - 4.dp, y = top + 20.dp + h * 0.275f * 0.18f)
+                .size(CUSTOMIZE_SIZE)
+                .graphicsLayer { alpha = boardIn.value },
         )
 
         // Back row first, front desk last, so the front sits over the back.
@@ -575,10 +627,11 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
             Seat(
                 seat = seat.copy(motes = if (motesShown && id in awake) seat.motes else emptyList()),
                 place = place,
+                deskColors = deskColors,
                 waveTick = if (id == StudentId.PIP) pipWaves else 0,
                 life = life.forStudent(id),
                 asleep = id !in awake,
-                pose = player.poses[id],
+                pose = player.poses[id] ?: glancePoses[id],
                 sceneHops = player.hops.getValue(id),
                 sceneNods = player.nods.getValue(id),
                 startle = settled,
@@ -605,9 +658,33 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
                         translationY = 18.dp.toPx() * (1f - enter)
                     },
             )
+            if (room.light.lampsOn) {
+                DeskLamp(
+                    Modifier
+                        .offset(x = w * place.x + seatW * (LAMP_X - LAMP_W / 2), y = h * place.bottom - seatW * (LAMP_BASE + LAMP_W * LAMP_ASPECT))
+                        .size(seatW * LAMP_W, seatW * LAMP_W * LAMP_ASPECT)
+                        .graphicsLayer { alpha = enter },
+                )
+            }
         }
 
         flight?.let { PaperFlight(it, Modifier.fillMaxSize()) }
+
+        // The light of the day over the room, and with the lamps on a warm pool around each one.
+        val tint = RoomPalette.light(room.light)
+        if (tint.alpha > 0f || room.light.lampsOn) {
+            Canvas(Modifier.fillMaxSize()) {
+                drawRect(tint)
+                if (room.light.lampsOn) {
+                    places.values.forEach { place ->
+                        val seatW = size.width * place.width
+                        val c = Offset(size.width * place.x + seatW * LAMP_X, size.height * place.bottom - seatW * (LAMP_BASE + 0.05f))
+                        val r = seatW * 0.6f
+                        drawCircle(Brush.radialGradient(listOf(RoomPalette.lampGlow.copy(alpha = 0.34f), Color.Transparent), c, r), r, c)
+                    }
+                }
+            }
+        }
 
         SpeechBubble(
             bubble = player.bubble ?: state.bubble,
@@ -671,6 +748,88 @@ fun ClassroomContent(state: UiState, onEvent: (UiEvent) -> Unit) {
                     },
             )
         }
+    }
+
+    if (state.customizing) RoomSheet(state.room, state.roomCustom, onEvent)
+}
+
+private val CUSTOMIZE_SIZE = 48.dp
+private const val GLANCE_HOLD_MS = 1_100L
+
+/** The brief face each student makes at a changed room. */
+private val glanceFace = mapOf(StudentId.MIRA to Face.CURIOUS, StudentId.JUNO to Face.SCEPTICAL, StudentId.PIP to Face.EXCITED)
+
+/** The desk lamp on each desk's back-right corner, in seat widths: its centre x, width, base above the seat bottom. */
+private const val LAMP_X = 0.84f
+private const val LAMP_W = 0.2f
+private const val LAMP_ASPECT = 1.25f
+private const val LAMP_BASE = 0.4f
+
+/**
+ * A paint roller drawn in code, for opening the Room sheet: a gold roller on an ink frame with a
+ * dark grip, on a small card disc, inside a 48dp touch target.
+ */
+@Composable
+private fun CustomizeButton(onTap: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = Chalkroom.colors
+    Canvas(
+        modifier
+            .clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onTap)
+            .semantics { contentDescription = "Customize classroom" },
+    ) {
+        val dp = density
+        val c = center
+        val ink = Stroke(2f * dp, join = StrokeJoin.Round, cap = StrokeCap.Round)
+        // A card disc behind it so it reads on any wall.
+        drawCircle(colors.ink.copy(alpha = 0.14f), 20f * dp, c + Offset(1.5f * dp, 2.5f * dp))
+        drawCircle(colors.card, 20f * dp, c)
+        drawCircle(colors.ink, 20f * dp, c, style = Stroke(2f * dp))
+        // Roller across the top, the frame bending down from its right end to the grip.
+        val rollerTl = Offset(c.x - 12f * dp, c.y - 11f * dp)
+        val roller = Size(19f * dp, 8f * dp)
+        drawRoundRect(colors.gold, rollerTl, roller, CornerRadius(3f * dp))
+        drawLine(colors.goldLedge, Offset(rollerTl.x + 3f * dp, rollerTl.y + 5.5f * dp), Offset(rollerTl.x + roller.width - 3f * dp, rollerTl.y + 5.5f * dp), 1.2f * dp)
+        drawRoundRect(colors.ink, rollerTl, roller, CornerRadius(3f * dp), style = ink)
+        val frame = Path().apply {
+            moveTo(rollerTl.x + roller.width, c.y - 7f * dp)
+            lineTo(c.x + 11f * dp, c.y - 7f * dp)
+            lineTo(c.x + 11f * dp, c.y - 1f * dp)
+            lineTo(c.x, c.y + 1f * dp)
+            lineTo(c.x, c.y + 5f * dp)
+        }
+        drawPath(frame, colors.ink, style = ink)
+        val grip = Offset(c.x - 3f * dp, c.y + 5f * dp)
+        drawRoundRect(colors.ink2, grip, Size(6f * dp, 10f * dp), CornerRadius(2.5f * dp))
+        drawRoundRect(colors.ink, grip, Size(6f * dp, 10f * dp), CornerRadius(2.5f * dp), style = Stroke(1.5f * dp))
+    }
+}
+
+/** A small desk lamp: a round foot, a bent arm and a shade with the bulb glowing under it. */
+@Composable
+private fun DeskLamp(modifier: Modifier = Modifier) {
+    val colors = Chalkroom.colors
+    Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        val ink = Stroke(0.06f * w, join = StrokeJoin.Round, cap = StrokeCap.Round)
+        // Foot.
+        drawOval(colors.ink2, Offset(0.2f * w, h - 0.16f * w), Size(0.6f * w, 0.16f * w))
+        drawOval(colors.ink, Offset(0.2f * w, h - 0.16f * w), Size(0.6f * w, 0.16f * w), style = ink)
+        // Arm: up, then leaning left to the shade.
+        val elbow = Offset(0.62f * w, h * 0.42f)
+        drawLine(colors.ink, Offset(0.5f * w, h - 0.08f * w), elbow, 0.07f * w, StrokeCap.Round)
+        drawLine(colors.ink, elbow, Offset(0.42f * w, h * 0.2f), 0.07f * w, StrokeCap.Round)
+        // Bulb glow, then the shade over it.
+        drawCircle(RoomPalette.lampGlow, 0.14f * w, Offset(0.32f * w, h * 0.33f))
+        val shade = Path().apply {
+            moveTo(0.3f * w, h * 0.04f)
+            lineTo(0.56f * w, h * 0.16f)
+            lineTo(0.42f * w, h * 0.42f)
+            lineTo(0.02f * w, h * 0.24f)
+            close()
+        }
+        drawPath(shade, colors.coral)
+        drawPath(shade, colors.ink, style = ink)
     }
 }
 
@@ -942,8 +1101,36 @@ private fun LightSwitch(on: State<Float>, dark: State<Float>, glowing: Boolean, 
  * lesson taught, and with neither it says "Class is in!". Its corners always carry a few faint doodles.
  */
 @Composable
-private fun Board(board: ClassroomContract.Board?, learned: ClassroomContract.Learned?, reduced: Boolean, onTap: () -> Unit, modifier: Modifier = Modifier) {
+private fun Board(
+    board: ClassroomContract.Board?,
+    learned: ClassroomContract.Learned?,
+    slate: Color,
+    stars: Boolean,
+    motto: String,
+    reduced: Boolean,
+    onTap: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val colors = Chalkroom.colors
+    // A new slate colour: a chalk eraser sweeps across left to right, leaving it behind. Instant with
+    // animations removed.
+    var lastSlate by remember { mutableStateOf(slate) }
+    var wipeFrom by remember { mutableStateOf<Color?>(null) }
+    val wipe = remember { Animatable(1f) }
+    LaunchedEffect(slate) {
+        if (slate == lastSlate) return@LaunchedEffect
+        val old = lastSlate
+        lastSlate = slate
+        if (reduced) {
+            wipeFrom = null
+            return@LaunchedEffect
+        }
+        wipeFrom = old
+        wipe.snapTo(0f)
+        wipe.animateTo(1f, tween(WIPE_MS, easing = EaseInOutSine))
+        wipeFrom = null
+    }
+    val mottoPad = if (motto.isNotEmpty()) MOTTO_STRIP else 0.dp
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val give by animateFloatAsState(if (pressed && board != null) 0.97f else 1f, settle(), label = "give")
@@ -983,10 +1170,17 @@ private fun Board(board: ClassroomContract.Board?, learned: ClassroomContract.Le
             drawRoundRect(colors.ink, size = frame, cornerRadius = r, style = Stroke(2.5f * dp))
             val inset = 10f * dp
             val slateTl = Offset(inset, inset)
-            val slate = Size(frame.width - 2 * inset, frame.height - 2 * inset)
-            drawRoundRect(colors.board, slateTl, slate, CornerRadius(4f * dp))
-            drawRoundRect(colors.ink.copy(alpha = 0.6f), slateTl, slate, CornerRadius(4f * dp), style = Stroke(1.5f * dp))
-            drawErasedArcs(slateTl, slate, colors.card.copy(alpha = 0.06f))
+            val slateSize = Size(frame.width - 2 * inset, frame.height - 2 * inset)
+            val from = wipeFrom
+            if (from != null) {
+                drawRoundRect(from, slateTl, slateSize, CornerRadius(4f * dp))
+                clipRect(right = slateTl.x + slateSize.width * wipe.value) { drawRoundRect(slate, slateTl, slateSize, CornerRadius(4f * dp)) }
+            } else {
+                drawRoundRect(slate, slateTl, slateSize, CornerRadius(4f * dp))
+            }
+            if (stars) drawStarSpeckle(slateTl, slateSize, colors.card)
+            drawRoundRect(colors.ink.copy(alpha = 0.6f), slateTl, slateSize, CornerRadius(4f * dp), style = Stroke(1.5f * dp))
+            drawErasedArcs(slateTl, slateSize, colors.card.copy(alpha = 0.06f))
             // The ledge under it, with a stick of chalk and an eraser.
             val ledgeTl = Offset(-6f * dp, frame.height - 4f * dp)
             val ledge = Size(size.width + 12f * dp, tray)
@@ -1000,15 +1194,19 @@ private fun Board(board: ClassroomContract.Board?, learned: ClassroomContract.Le
             drawRoundRect(colors.ink, eraserTl, Size(34f * dp, 10f * dp), CornerRadius(2f * dp), style = Stroke(1.2f * dp))
         }
         // The slate's corners: faint stars, scribbles and unfinished sums, under everything else.
-        BoardDoodles(Modifier.matchParentSize().padding(start = 10.dp, top = 10.dp, end = 10.dp, bottom = trayH + 6.dp), leftBusy = board == null && learned != null)
+        BoardDoodles(
+            Modifier.matchParentSize().padding(start = 10.dp, top = 10.dp, end = 10.dp, bottom = trayH + 6.dp),
+            leftBusy = board == null && learned != null,
+            bottomBusy = motto.isNotEmpty(),
+        )
         if (board == null && learned == null) {
-            ChalkHeadline("Class is in!", Modifier.matchParentSize().padding(start = 10.dp, top = 10.dp, end = 10.dp, bottom = trayH + 6.dp))
+            ChalkHeadline("Class is in!", Modifier.matchParentSize().padding(start = 10.dp, top = 10.dp, end = 10.dp, bottom = trayH + 6.dp + mottoPad))
         } else if (board != null) {
             val color = StudentCatalog[board.studentId].color
             Column(
                 Modifier
                     .align(Alignment.Center)
-                    .padding(bottom = trayH)
+                    .padding(bottom = trayH + mottoPad)
                     .graphicsLayer { rotationZ = -1.5f },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -1036,7 +1234,7 @@ private fun Board(board: ClassroomContract.Board?, learned: ClassroomContract.Le
             Column(
                 Modifier
                     .fillMaxSize()
-                    .padding(start = 22.dp, top = 16.dp, end = 18.dp, bottom = trayH + 14.dp),
+                    .padding(start = 22.dp, top = 16.dp, end = 18.dp, bottom = trayH + 14.dp + mottoPad),
             ) {
                 Text(
                     "${learned.name} learned:",
@@ -1050,6 +1248,40 @@ private fun Board(board: ClassroomContract.Board?, learned: ClassroomContract.Le
                     spacing = 2.dp,
                     modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp, start = 4.dp),
                 )
+            }
+        }
+        if (motto.isNotEmpty()) {
+            BasicText(
+                motto,
+                style = Chalkroom.type.chalkHand.copy(textAlign = TextAlign.Center),
+                maxLines = 1,
+                autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 17.sp, stepSize = 0.5.sp),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(start = 18.dp, end = 18.dp, bottom = trayH + 7.dp)
+                    .height(MOTTO_STRIP - 4.dp)
+                    .graphicsLayer { rotationZ = -1f }
+                    .semantics { contentDescription = "Board motto: $motto" },
+            )
+        }
+        // The eraser on its sweep, a dusty band trailing behind it.
+        if (wipeFrom != null) {
+            Canvas(Modifier.matchParentSize()) {
+                val dp = density
+                val inset = 10f * dp
+                val slateW = size.width - 2 * inset
+                val slateH = size.height - trayH.toPx() - 2 * inset
+                val x = inset + slateW * wipe.value
+                drawRect(colors.card.copy(alpha = 0.10f), Offset(x - 14f * dp, inset), Size(14f * dp, slateH))
+                val ey = inset + slateH * (0.5f + 0.3f * sin(wipe.value * PI.toFloat() * 3f)) - 17f * dp
+                val tl = Offset(x - 8f * dp, ey.coerceIn(inset, inset + slateH - 34f * dp))
+                drawRoundRect(colors.ink2, tl, Size(16f * dp, 34f * dp), CornerRadius(2f * dp))
+                drawRect(colors.lavender2, Offset(tl.x + 11f * dp, tl.y), Size(5f * dp, 34f * dp))
+                drawRoundRect(colors.ink, tl, Size(16f * dp, 34f * dp), CornerRadius(2f * dp), style = Stroke(1.2f * dp))
+                repeat(5) { i ->
+                    drawCircle(colors.card.copy(alpha = 0.35f), (1.5f + i % 2) * dp, Offset(tl.x - (4f + 5f * i) * dp, tl.y + (6f + 6f * i) * dp))
+                }
             }
         }
         // Chalk dust: a few soft specks spreading out and drifting up as they fade.
@@ -1067,6 +1299,18 @@ private fun Board(board: ClassroomContract.Board?, learned: ClassroomContract.Le
     }
 }
 
+private const val WIPE_MS = 400
+private val MOTTO_STRIP = 22.dp
+
+/** Space Lab's slate: a faint, fixed speckle of stars. */
+private fun DrawScope.drawStarSpeckle(tl: Offset, slate: Size, chalk: Color) {
+    val rnd = Random(11)
+    repeat(46) {
+        val at = Offset(tl.x + rnd.nextFloat() * slate.width, tl.y + rnd.nextFloat() * slate.height)
+        drawCircle(chalk.copy(alpha = 0.10f + rnd.nextFloat() * 0.14f), (0.5f + rnd.nextFloat() * 0.9f) * density, at)
+    }
+}
+
 /**
  * One student at their desk, in their resting pose (Mira's head tilted at you, Juno's hat askew and
  * her eyes on the board with a pencil ready, Pip big and up high behind his desk). Each bump of [waveTick],
@@ -1078,6 +1322,7 @@ private fun Board(board: ClassroomContract.Board?, learned: ClassroomContract.Le
 private fun Seat(
     seat: ClassroomContract.Seat,
     place: SeatPlace,
+    deskColors: ChalkroomColors,
     life: RoomLife?,
     doodleStrokes: Int,
     onTap: () -> Unit,
@@ -1142,7 +1387,8 @@ private fun Seat(
         tween(if (kind == null) 500 else 900, easing = EaseInOutSine),
         label = "prop",
     )
-    StudentAtDesk(
+    // The desk in the room's style; the student and Juno's pencil keep the app palette.
+    CompositionLocalProvider(LocalChalkroomColors provides deskColors) { StudentAtDesk(
         studentId = id,
         expression = pose?.face?.expression ?: Expression.IDLE,
         motes = seat.motes,
@@ -1177,7 +1423,7 @@ private fun Seat(
                 onClick = onTap,
             )
             .padding(top = headroom),
-    )
+    ) }
 }
 
 private const val WAVE_SWAY_MS = 1_000

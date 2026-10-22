@@ -82,10 +82,11 @@ fun ChalkHeadline(text: String, modifier: Modifier = Modifier) {
  * The slate's corners, always there under everything else: tiny chalk stars, loose scribbles and
  * half-finished maths ("2x + 3 =", a triangle with one side marked, a √ with nothing under it).
  * Faint and small, so they never compete with what's written in the middle. With [leftBusy]
- * (left-aligned lines run into the left corners) only the right corners are drawn.
+ * (left-aligned lines run into the left corners) only the right corners are drawn; with [bottomBusy]
+ * (the motto runs along the bottom) the bottom corners are left clean.
  */
 @Composable
-fun BoardDoodles(modifier: Modifier = Modifier, leftBusy: Boolean = false) {
+fun BoardDoodles(modifier: Modifier = Modifier, leftBusy: Boolean = false, bottomBusy: Boolean = false) {
     val colors = Chalkroom.colors
     val measurer = rememberTextMeasurer()
     val chalk = colors.chalk.copy(alpha = DOODLE_ALPHA)
@@ -110,14 +111,16 @@ fun BoardDoodles(modifier: Modifier = Modifier, leftBusy: Boolean = false) {
                 drawStar(Offset(w - m - 44f * dp, m + 22f * dp), 3f * dp, chalk, 0.2f)
                 drawStar(Offset(w - m - 3f * dp, m + 30f * dp), 2.5f * dp, chalk, 1.1f)
                 // Bottom left: a root sign with nothing under it, and a loose scribble.
-                if (!leftBusy) {
+                if (!leftBusy && !bottomBusy) {
                     drawRoot(Offset(m + 2f * dp, h - m - 14f * dp), 30f * dp, chalk, line)
                     drawStar(Offset(m + 44f * dp, h - m - 20f * dp), 3f * dp, chalk, 0.9f)
                 }
                 // Bottom right: scribbles and a star.
-                drawScribble(Offset(w - m - 46f * dp, h - m - 16f * dp), 34f * dp, 4, chalk, line, seed = 2)
-                drawScribble(Offset(w - m - 30f * dp, h - m - 6f * dp), 22f * dp, 3, chalk, line, seed = 3)
-                drawStar(Offset(w - m - 54f * dp, h - m - 6f * dp), 3f * dp, chalk, 0.4f)
+                if (!bottomBusy) {
+                    drawScribble(Offset(w - m - 46f * dp, h - m - 16f * dp), 34f * dp, 4, chalk, line, seed = 2)
+                    drawScribble(Offset(w - m - 30f * dp, h - m - 6f * dp), 22f * dp, 3, chalk, line, seed = 3)
+                    drawStar(Offset(w - m - 54f * dp, h - m - 6f * dp), 3f * dp, chalk, 0.4f)
+                }
             }
         },
     )

@@ -4,12 +4,15 @@ import app.chalkroom.BuildConfig
 import app.chalkroom.data.ChalkroomApi
 import app.chalkroom.data.LessonRepository
 import app.chalkroom.data.PrefsRoomLights
+import app.chalkroom.data.PrefsRoomStyleRepository
 import app.chalkroom.data.RoomLights
+import app.chalkroom.data.RoomStyleRepository
 import app.chalkroom.data.pdf.PdfBoxReader
 import app.chalkroom.data.pdf.PdfParts
 import app.chalkroom.data.pdf.PdfReader
 import app.chalkroom.feature.choosestudent.ChooseStudentViewModel
 import app.chalkroom.feature.classroom.ClassroomViewModel
+import app.chalkroom.feature.classroom.room.CustomizeRoom
 import app.chalkroom.feature.closing.ClosingViewModel
 import app.chalkroom.feature.lesson.LessonViewModel
 import app.chalkroom.feature.pastenotes.PasteNotesViewModel
@@ -43,6 +46,8 @@ val appModule = module {
     single { ChalkroomApi(get(), BuildConfig.API_BASE_URL) }
     single { LessonRepository() }
     single<RoomLights> { PrefsRoomLights(androidContext()) }
+    single<RoomStyleRepository> { PrefsRoomStyleRepository(androidContext()) }
+    factory { CustomizeRoom(get()) }
     single<PdfReader> { PdfBoxReader(androidContext()) }
     single { PdfParts() }
 

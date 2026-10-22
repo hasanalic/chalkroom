@@ -35,10 +35,11 @@ private const val FADE_TO = 0.93f
 
 /**
  * The room behind everything: wall (warmer near the floor), skirting, the shelf, clock and notes cut
- * by the screen edges, the bin in the corner, and wooden floorboards running towards the back.
+ * by the screen edges, the bin in the corner, and wooden floorboards running towards the back. With
+ * [shelves] the wall is lined with wooden bookshelves (the Library).
  */
 @Composable
-fun Room(modifier: Modifier = Modifier) {
+fun Room(modifier: Modifier = Modifier, shelves: Boolean = false) {
     val colors = Chalkroom.colors
     Canvas(modifier) {
         val w = size.width
@@ -49,6 +50,7 @@ fun Room(modifier: Modifier = Modifier) {
         // Wall: two flat bands, a touch warmer near the floor.
         drawRect(colors.wall, size = Size(w, wallBottom))
         drawRect(colors.wallLow, Offset(0f, wallBottom * 0.86f), Size(w, wallBottom * 0.14f))
+        if (shelves) drawBookshelves(colors, wallBottom)
 
         drawFloor(colors, wallBottom)
 
@@ -70,6 +72,38 @@ fun Room(modifier: Modifier = Modifier) {
             Offset(0f, h * FADE_FROM),
             Size(w, h * (1f - FADE_FROM)),
         )
+    }
+}
+
+/** Rows of books on wooden planks from the ceiling down to just above the skirting. */
+private fun DrawScope.drawBookshelves(c: ChalkroomColors, wallBottom: Float) {
+    val dp = density
+    val w = size.width
+    val rowH = wallBottom / 4.2f
+    val plankH = 6f * dp
+    val spines = listOf(Color(0xFF7A3B2E), Color(0xFF3F5A44), Color(0xFF8C6A2F), Color(0xFF3D4A6B), Color(0xFF6B4A3A), Color(0xFF9A7B4F))
+    var row = 0
+    // The first row starts low enough that the status bar stays clear.
+    var shelfY = rowH * 1.3f
+    while (shelfY < wallBottom * 0.9f) {
+        // Books standing on this plank, varied widths and heights, a seeded gap now and then.
+        var x = -((row * 13) % 17) * dp
+        var i = row * 7
+        while (x < w) {
+            val bw = (9f + (i * 5) % 8) * dp
+            val bh = rowH * (0.55f + ((i * 37) % 30) / 100f)
+            if (i % 9 != 4) {
+                drawRect(spines[i % spines.size], Offset(x, shelfY - bh), Size(bw, bh))
+                drawLine(c.ink.copy(alpha = 0.35f), Offset(x, shelfY - bh), Offset(x, shelfY), 1f * dp)
+                drawLine(c.card.copy(alpha = 0.18f), Offset(x + 2f * dp, shelfY - bh * 0.8f), Offset(x + bw - 2f * dp, shelfY - bh * 0.8f), 1.5f * dp)
+            }
+            x += bw + 1f * dp
+            i++
+        }
+        drawRect(c.woodDeep, Offset(0f, shelfY), Size(w, plankH))
+        drawLine(c.ink.copy(alpha = 0.35f), Offset(0f, shelfY + plankH), Offset(w, shelfY + plankH), 1.5f * dp)
+        shelfY += rowH
+        row++
     }
 }
 
