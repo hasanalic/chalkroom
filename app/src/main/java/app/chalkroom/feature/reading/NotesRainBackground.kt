@@ -30,10 +30,10 @@ import kotlin.math.roundToInt
 import kotlin.random.Random
 
 /** One cell size for every column: the glyph's size, and the step down a stream is the glyph's height. */
-private const val GLYPH_SP = 12f
-private const val GLYPH_H = 0.9f
+internal const val GLYPH_SP = 12f
+internal const val GLYPH_H = 0.9f
 /** Columns sit side by side at one width, about this wide, 26–32 of them across a phone. */
-private val COLUMN_W = 14.5.dp
+internal val COLUMN_W = 14.5.dp
 private const val MIN_COLUMNS = 26
 private const val MAX_COLUMNS = 32
 /** Depth comes only from brightness: three tiers, faint to bright. */

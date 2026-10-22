@@ -31,24 +31,31 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.chalkroom.feature.reading.ReadingContract.Phase
 import app.chalkroom.feature.reading.ReadingContract.UiEffect
 import app.chalkroom.feature.reading.ReadingContract.UiEvent
 import app.chalkroom.feature.reading.ReadingContract.UiState
 import app.chalkroom.shared.StudentId
+import app.chalkroom.students.FIGURE_ASPECT
 import app.chalkroom.students.Mote
-import app.chalkroom.students.StudentAtDesk
 import app.chalkroom.students.StudentCatalog
+import app.chalkroom.students.StudentFigure
+import app.chalkroom.students.StudentShapes
 import app.chalkroom.ui.components.LightStatusBarIcons
 import app.chalkroom.ui.components.LineCard
 import app.chalkroom.ui.components.PrimaryButton
@@ -57,6 +64,9 @@ import app.chalkroom.ui.theme.Chalkroom
 import app.chalkroom.ui.theme.ChalkroomTheme
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
+import kotlin.math.ceil
+import kotlin.math.roundToInt
+import kotlin.random.Random
 
 @Composable
 fun ReadingScreen(
@@ -128,13 +138,20 @@ fun ReadingContent(state: UiState, onEvent: (UiEvent) -> Unit) {
     }
 }
 
-private val STAGE_H = 360.dp
-private val DESK_W = 250.dp
-private val MOTES_REACH = 72.dp
+private val FIGURE_W = 224.dp
+private val FIGURE_H = FIGURE_W * FIGURE_ASPECT
+/** Room above the figure where the words lift out of the rain. */
+private val FLIGHT_ROOM = 56.dp
+private val STAGE_H = FIGURE_H + FLIGHT_ROOM
+/** Margin around the figure for the motes' wobble and the last mote's bigger size. */
+private val MOTES_MARGIN = 12.dp
+/** How many rain rows the bust's base takes to dissolve: all of them below the eyes. */
+private const val DISSOLVE_ROWS = 4
 
 /**
- * The student at a desk over the notes rain. When the deck arrives, a highlighted word from the
- * notes floats to the head, in the student's colour, for each mote that condenses.
+ * The student alone over the notes rain, the base of the bust dissolving into it. When the deck
+ * arrives, a highlighted word from the notes floats to the head, in the student's colour, for each
+ * mote that condenses.
  */
 @Composable
 private fun ReadingStage(state: UiState, rainText: RainText, onStudentArea: (Rect) -> Unit) {
@@ -143,24 +160,33 @@ private fun ReadingStage(state: UiState, rainText: RainText, onStudentArea: (Rec
     val words = remember(rainText) {
         rainText.keyWords.ifEmpty { rainText.words.filter { it.length >= 5 }.distinct() }.ifEmpty { listOf("notes") }
     }
-    val motesReach = with(LocalDensity.current) { MOTES_REACH.toPx() }
+    val density = LocalDensity.current
+    val margin = with(density) { MOTES_MARGIN.toPx() }
+    // The rain comes back up into the dissolving base, so the calm area stops halfway into it.
+    val dissolveH = with(density) { (GLYPH_SP * GLYPH_H).sp.toPx() } * DISSOLVE_ROWS
     BoxWithConstraints(Modifier.fillMaxWidth().height(STAGE_H)) {
         val w = maxWidth
-        StudentAtDesk(
+        StudentFigure(
             studentId = state.studentId,
             expression = state.expression,
             motes = state.motes,
             look = state.look,
             nodTick = state.nodTick,
-            showName = false,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .width(DESK_W)
-                // The motes gather over the head, so the calm area reaches above the figure.
-                .onGloballyPositioned { val b = it.boundsInRoot(); onStudentArea(b.copy(top = b.top - motesReach)) },
+                .width(FIGURE_W)
+                .dissolveBase(DISSOLVE_ROWS)
+                .onGloballyPositioned {
+                    val b = it.boundsInRoot()
+                    onStudentArea(Rect(b.left - margin, b.top - margin, b.right + margin, b.bottom - dissolveH / 2))
+                },
         )
-        // Over the head, where the motes gather.
-        val head = Offset(w.value / 2, (STAGE_H - DESK_W * 1.34f).value + DESK_W.value * 0.3f)
+        // The head, on the figure as it is drawn: the face's centre, a little above the eyes.
+        val face = StudentShapes.face(state.studentId)
+        val head = Offset(
+            (w - FIGURE_W).value / 2 + face.center.x * FIGURE_W.value,
+            FLIGHT_ROOM.value + (face.center.y - HEAD_ABOVE_EYES) * FIGURE_W.value,
+        )
         state.motes.forEachIndexed { i, mote ->
             key(mote.id) {
                 val word = words[(i * 7 + 3) % words.size]
@@ -170,6 +196,42 @@ private fun ReadingStage(state: UiState, rainText: RainText, onStudentArea: (Rec
         }
     }
 }
+
+/** From the eyes up to the middle of the head, in figure widths. */
+private const val HEAD_ABOVE_EYES = 0.12f
+
+/**
+ * The bottom [rows] rows of the rain grid dissolve the bust cell by cell, the way a stream's trail
+ * fades: each row up keeps a quarter more of the bust, some columns a step behind their
+ * neighbours (seeded) so the edge isn't a line. Alpha only: every cell is one flat value, no
+ * gradient and no blur. Cells are snapped to whole pixels so no seams show between them.
+ */
+private fun Modifier.dissolveBase(rows: Int): Modifier =
+    graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+        .drawWithContent {
+            drawContent()
+            val cellH = (GLYPH_SP * GLYPH_H).sp.toPx()
+            val cellW = COLUMN_W.toPx()
+            val cols = ceil(size.width / cellW).toInt()
+            val random = Random(7)
+            for (c in 0 until cols) {
+                val lag = random.nextInt(2)
+                val left = (c * cellW).roundToInt().toFloat()
+                val right = minOf(((c + 1) * cellW).roundToInt().toFloat(), size.width)
+                for (r in 0 until rows) {
+                    val keep = ((r + lag).toFloat() / rows).coerceAtMost(1f)
+                    if (keep >= 1f) continue
+                    val bottom = (size.height - r * cellH).roundToInt().toFloat()
+                    val top = (size.height - (r + 1) * cellH).roundToInt().toFloat()
+                    drawRect(
+                        Color.Black.copy(alpha = 1f - keep),
+                        topLeft = Offset(left, top),
+                        size = Size(right - left, bottom - top),
+                        blendMode = BlendMode.DstOut,
+                    )
+                }
+            }
+        }
 
 /** One word lifting out of the rain and condensing into the head. */
 @Composable
