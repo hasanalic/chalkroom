@@ -10,6 +10,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -27,6 +28,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.chalkroom.ui.theme.Chalkroom
@@ -88,6 +90,7 @@ private fun LedgeButton(
     modifier: Modifier,
     enabled: Boolean,
     border: Color? = null,
+    small: Boolean = false,
 ) {
     val colors = Chalkroom.colors
     val interaction = remember { MutableInteractionSource() }
@@ -102,12 +105,12 @@ private fun LedgeButton(
         modifier = modifier,
         contentModifier = Modifier
             .clickable(interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+            .padding(horizontal = if (small) 16.dp else 20.dp, vertical = if (small) 9.dp else 14.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text,
-            style = Chalkroom.type.button.copy(color = if (enabled) textColor else colors.muted),
+            style = (if (small) Chalkroom.type.label else Chalkroom.type.button).copy(color = if (enabled) textColor else colors.muted),
             textAlign = TextAlign.Center,
             modifier = Modifier.align(Alignment.Center),
         )
@@ -116,9 +119,9 @@ private fun LedgeButton(
 
 /** Gold, on a deeper gold ledge. The primary action everywhere. */
 @Composable
-fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, small: Boolean = false) {
     val c = Chalkroom.colors
-    LedgeButton(text, onClick, c.gold, c.goldLedge, c.ink, modifier, enabled)
+    LedgeButton(text, onClick, c.gold, c.goldLedge, c.ink, modifier, enabled, small = small)
 }
 
 /** Coral, for a second, warmer choice. */
@@ -130,9 +133,24 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
 
 /** White with an ink outline, on an ink ledge. */
 @Composable
-fun QuietButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun QuietButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, small: Boolean = false) {
     val c = Chalkroom.colors
-    LedgeButton(text, onClick, c.card, c.ink, c.ink, modifier, enabled, border = c.ink)
+    LedgeButton(text, onClick, c.card, c.ink, c.ink, modifier, enabled, border = c.ink, small = small)
+}
+
+/** Just words, no surface: the quietest action, for a way out or a second way in. */
+@Composable
+fun TextButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .defaultMinSize(minHeight = 44.dp)
+            .clip(ButtonShape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, style = Chalkroom.type.label.copy(color = Chalkroom.colors.ink, textDecoration = TextDecoration.Underline), textAlign = TextAlign.Center)
+    }
 }
 
 /** A light card on a lavender ledge. */

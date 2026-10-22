@@ -1,5 +1,8 @@
 package app.chalkroom.feature.pastenotes
 
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.chalkroom.feature.pastenotes.PasteNotesContract.Sheet
 import app.chalkroom.feature.pastenotes.PasteNotesContract.UiEffect
 import app.chalkroom.feature.pastenotes.PasteNotesContract.UiEvent
 import app.chalkroom.feature.pastenotes.PasteNotesContract.UiState
@@ -35,6 +39,7 @@ import app.chalkroom.shared.StudentId
 import app.chalkroom.ui.components.Ledge
 import app.chalkroom.ui.components.PrimaryButton
 import app.chalkroom.ui.components.QuietButton
+import app.chalkroom.ui.components.TextButton
 import app.chalkroom.ui.theme.Chalkroom
 import app.chalkroom.ui.theme.ChalkroomTheme
 import java.text.NumberFormat
@@ -46,6 +51,7 @@ fun PasteNotesScreen(
     preselected: StudentId?,
     onChooseStudent: () -> Unit,
     onRead: (StudentId) -> Unit,
+    onPickPart: () -> Unit,
     viewModel: PasteNotesViewModel = koinViewModel { parametersOf(preselected) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -54,14 +60,21 @@ fun PasteNotesScreen(
             when (it) {
                 UiEffect.ChooseStudent -> onChooseStudent()
                 is UiEffect.Read -> onRead(it.studentId)
+                UiEffect.PickPart -> onPickPart()
             }
         }
     }
-    PasteNotesContent(state, viewModel::onEvent)
+    // The system document picker; no storage permission. Backing out of it changes nothing.
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.onEvent(UiEvent.PdfPicked(uri.toString()))
+    }
+    // While a file is opening or reading, Back drops it instead of leaving.
+    BackHandler(enabled = state.busy) { viewModel.onEvent(UiEvent.DropFile) }
+    PasteNotesContent(state, viewModel::onEvent, onChoosePdf = { picker.launch(arrayOf("application/pdf")) })
 }
 
 @Composable
-fun PasteNotesContent(state: UiState, onEvent: (UiEvent) -> Unit) {
+fun PasteNotesContent(state: UiState, onEvent: (UiEvent) -> Unit, onChoosePdf: () -> Unit = {}) {
     val colors = Chalkroom.colors
     val type = Chalkroom.type
     val lineHeight = type.body.lineHeight
@@ -70,7 +83,7 @@ fun PasteNotesContent(state: UiState, onEvent: (UiEvent) -> Unit) {
     ) {
         Text("What are you teaching?", style = type.headline, modifier = Modifier.padding(top = 12.dp))
         Text(
-            "Paste your notes on one topic. The students will read them.",
+            "Paste your notes on one topic, or choose a PDF. The students will read them.",
             style = type.body.copy(color = colors.muted),
             modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
         )
@@ -84,30 +97,33 @@ fun PasteNotesContent(state: UiState, onEvent: (UiEvent) -> Unit) {
             modifier = Modifier.fillMaxWidth().weight(1f),
             contentModifier = Modifier.fillMaxSize(),
         ) {
-            BasicTextField(
-                value = state.notes,
-                onValueChange = { onEvent(UiEvent.NotesChanged(it)) },
-                textStyle = type.body,
-                cursorBrush = SolidColor(colors.ink),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .drawBehind {
-                        val step = lineHeight.toPx()
-                        var y = SHEET_PAD.toPx() + step
-                        while (y < size.height - 8.dp.toPx()) {
-                            drawLine(colors.lavender2.copy(alpha = 0.45f), Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
-                            y += step
+            when (val sheet = state.sheet) {
+                is Sheet.WithFile -> PdfOnSheet(sheet, state.studentName, onEvent, onChoosePdf, lineHeight)
+                Sheet.Typing -> BasicTextField(
+                    value = state.notes,
+                    onValueChange = { onEvent(UiEvent.NotesChanged(it)) },
+                    textStyle = type.body,
+                    cursorBrush = SolidColor(colors.ink),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .ruledPaper(lineHeight)
+                        .padding(start = SHEET_PAD + 4.dp, end = 16.dp, top = SHEET_PAD, bottom = 12.dp)
+                        .testTag("notes"),
+                    decorationBox = { inner ->
+                        if (state.notes.isEmpty()) {
+                            Text("Paste your notes here…", style = type.body.copy(color = colors.muted))
                         }
-                        drawLine(colors.coral.copy(alpha = 0.35f), Offset(SHEET_PAD.toPx() - 6.dp.toPx(), 0f), Offset(SHEET_PAD.toPx() - 6.dp.toPx(), size.height), 1.dp.toPx())
-                    }
-                    .padding(start = SHEET_PAD + 4.dp, end = 16.dp, top = SHEET_PAD, bottom = 12.dp)
-                    .testTag("notes"),
-                decorationBox = { inner ->
-                    if (state.notes.isEmpty()) {
-                        Text("Paste your notes here…", style = type.body.copy(color = colors.muted))
-                    }
-                    inner()
-                },
+                        inner()
+                    },
+                )
+            }
+        }
+        (state.sheet as? Sheet.AskingPages)?.let { asking ->
+            PagesDialog(
+                pageCount = asking.pageCount,
+                studentName = state.studentName,
+                onRead = { from, to -> onEvent(UiEvent.ReadPages(from, to)) },
+                onNeverMind = { onEvent(UiEvent.DropFile) },
             )
         }
         // Grows with its lines instead of a fixed height, so the count never slides under the button.
@@ -116,24 +132,40 @@ fun PasteNotesContent(state: UiState, onEvent: (UiEvent) -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            if (state.offerLastNotes) {
-                QuietButton(
-                    text = "Use your notes on ${state.lastTopic} again",
-                    onClick = { onEvent(UiEvent.UseLastNotes) },
-                    modifier = Modifier.testTag("useLastNotes"),
-                )
-            } else {
-                Text(
-                    text = when {
-                        state.tooLong -> "A little too much for one go. Trim it to continue."
-                        state.tooShort && state.notes.isNotBlank() -> "A little more, please. Notes need about ${NoteLimits.MIN_CHARS} characters to learn from."
-                        state.notes.isBlank() -> " "
-                        else -> amountLine(state.length)
-                    },
-                    style = type.label,
-                    textAlign = TextAlign.Center,
-                )
-                if (state.notes.isNotBlank()) {
+            val ready = state.sheet as? Sheet.Ready
+            when {
+                ready != null -> {
+                    val parts = ready.parts
+                    if (parts.size > 1) {
+                        Text("In ${parts.size} parts — you'll pick one", style = type.label, textAlign = TextAlign.Center)
+                    } else {
+                        val sent = parts.single().text.length
+                        Text(amountLine(sent), style = type.label, textAlign = TextAlign.Center)
+                        Text("${count(sent)} / ${count(NoteLimits.MAX_CHARS)} characters", style = type.small, modifier = Modifier.padding(top = 2.dp))
+                    }
+                }
+                !state.typing -> Text(" ", style = type.label)
+                state.offerPdf -> {
+                    if (state.offerLastNotes) {
+                        QuietButton(
+                            text = "Use your notes on ${state.lastTopic} again",
+                            onClick = { onEvent(UiEvent.UseLastNotes) },
+                            modifier = Modifier.testTag("useLastNotes"),
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    TextButton("Or choose a PDF", onChoosePdf, Modifier.testTag("choosePdf"))
+                }
+                else -> {
+                    Text(
+                        text = when {
+                            state.tooLong -> "A little too much for one go. Trim it to continue."
+                            state.tooShort -> "A little more, please. Notes need about ${NoteLimits.MIN_CHARS} characters to learn from."
+                            else -> amountLine(state.length)
+                        },
+                        style = type.label,
+                        textAlign = TextAlign.Center,
+                    )
                     Text("${count(state.length)} / ${count(NoteLimits.MAX_CHARS)} characters", style = type.small, modifier = Modifier.padding(top = 2.dp))
                 }
             }
@@ -148,8 +180,6 @@ fun PasteNotesContent(state: UiState, onEvent: (UiEvent) -> Unit) {
     }
 }
 
-private val SHEET_PAD = 22.dp
-
 /** How much is there, as reading time for a person: about [CHARS_PER_MINUTE] characters a minute. */
 internal fun amountLine(chars: Int): String = when (val minutes = (chars + CHARS_PER_MINUTE / 2) / CHARS_PER_MINUTE) {
     0 -> "Under a minute to read"
@@ -159,7 +189,7 @@ internal fun amountLine(chars: Int): String = when (val minutes = (chars + CHARS
 
 private const val CHARS_PER_MINUTE = 1_100
 
-private fun count(n: Int) = NumberFormat.getIntegerInstance(java.util.Locale.US).format(n)
+internal fun count(n: Int) = NumberFormat.getIntegerInstance(java.util.Locale.US).format(n)
 
 @Preview(widthDp = 390, heightDp = 800)
 @Composable

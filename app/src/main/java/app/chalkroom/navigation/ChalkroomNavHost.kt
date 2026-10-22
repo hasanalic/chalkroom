@@ -16,6 +16,7 @@ import app.chalkroom.feature.closing.ClosingScreen
 import app.chalkroom.feature.classroom.ClassroomScreen
 import app.chalkroom.feature.lesson.LessonScreen
 import app.chalkroom.feature.pastenotes.PasteNotesScreen
+import app.chalkroom.feature.pickpart.PickPartScreen
 import app.chalkroom.feature.reading.ReadingScreen
 import app.chalkroom.ui.theme.Chalkroom
 
@@ -43,6 +44,14 @@ fun ChalkroomNavHost() {
                 preselected = route.preselected,
                 onChooseStudent = { nav.navigate(ChooseStudent) },
                 onRead = { nav.navigate(Reading(it)) },
+                onPickPart = { nav.navigate(PickPart) },
+            )
+        }
+        composable<PickPart> {
+            PickPartScreen(
+                onChooseStudent = { nav.navigate(ChooseStudent) },
+                onRead = { nav.navigate(Reading(it)) },
+                onBack = { nav.popBackStack() },
             )
         }
         composable<ChooseStudent> {

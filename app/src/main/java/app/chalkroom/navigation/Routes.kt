@@ -11,6 +11,10 @@ data object Classroom
 @Serializable
 data class PasteNotes(val preselected: StudentId? = null)
 
+/** Parts live in PdfParts, not in the route. */
+@Serializable
+data object PickPart
+
 @Serializable
 data object ChooseStudent
 

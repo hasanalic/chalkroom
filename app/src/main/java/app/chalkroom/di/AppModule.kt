@@ -5,11 +5,15 @@ import app.chalkroom.data.ChalkroomApi
 import app.chalkroom.data.LessonRepository
 import app.chalkroom.data.PrefsRoomLights
 import app.chalkroom.data.RoomLights
+import app.chalkroom.data.pdf.PdfBoxReader
+import app.chalkroom.data.pdf.PdfParts
+import app.chalkroom.data.pdf.PdfReader
 import app.chalkroom.feature.choosestudent.ChooseStudentViewModel
 import app.chalkroom.feature.classroom.ClassroomViewModel
 import app.chalkroom.feature.closing.ClosingViewModel
 import app.chalkroom.feature.lesson.LessonViewModel
 import app.chalkroom.feature.pastenotes.PasteNotesViewModel
+import app.chalkroom.feature.pickpart.PickPartViewModel
 import app.chalkroom.feature.reading.ReadingViewModel
 import app.chalkroom.shared.AppJson
 import app.chalkroom.shared.StudentId
@@ -39,9 +43,12 @@ val appModule = module {
     single { ChalkroomApi(get(), BuildConfig.API_BASE_URL) }
     single { LessonRepository() }
     single<RoomLights> { PrefsRoomLights(androidContext()) }
+    single<PdfReader> { PdfBoxReader(androidContext()) }
+    single { PdfParts() }
 
     viewModelOf(::ClassroomViewModel)
-    viewModel { params -> PasteNotesViewModel(params.getOrNull<StudentId>(), get()) }
+    viewModel { params -> PasteNotesViewModel(params.getOrNull<StudentId>(), get(), get(), get()) }
+    viewModelOf(::PickPartViewModel)
     viewModelOf(::ChooseStudentViewModel)
     viewModel { params -> ReadingViewModel(params.get(), get(), get()) }
     viewModel { params -> LessonViewModel(params.get(), get(), get()) }
