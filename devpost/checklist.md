@@ -159,7 +159,7 @@ Activity and evidence: Focused alternative, tied to the goal of reliable AI insi
 Route and stops: `TurnJudge.kt` (`Writing "chalkLine"`, `SCHEMA`) → `ChalkLine.kt` (`MAX_WORDS`, `clean()`, called from `Routes.kt`) → `SayRulesEval.kt` (`CHALK_WORDS`, `chalkLines()`).
 Edit outcome: Not applicable. No edit was made. The learner named one possible improvement, counting chalk lines dropped by `ChalkLine.clean()`. It is not built and is listed in the app map as an idea.
 Reflection: Offered and answered (kept in the learner profile).
-Activity mode: Focused alternative (plan-first learner). `devpost/app-map.html` was made from commit `9887f99` and checked in the browser pane.
+Activity mode: Focused alternative (plan-first learner). `devpost/app-map.html` was made from commit `fabc60f` and checked in the browser pane.
 
 ## Revisions
 
