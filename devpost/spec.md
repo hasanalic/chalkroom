@@ -103,7 +103,7 @@ Models (learner choice, revised during the build; defaults in `Config.kt`, every
 - **Submission:** a short demo video plus a public GitHub repo. A debug APK built against the deployed server is attached to a GitHub Release, so judges can try it without their own key; the README also covers running everything locally.
 - **Sharing links:**
   - Public GitHub repository: https://github.com/hasanalic/chalkroom (public since 2026-10-22, checked signed out)
-  - Demo video: not yet recorded
+  - Demo video: https://www.youtube.com/watch?v=jXjWvMHnxqQ (public, 2:55, uploaded 2026-10-24)
   - Live server / APK release: not set up (optional)
 
 ## Look and Feel
